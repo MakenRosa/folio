@@ -1,5 +1,7 @@
 # Fólio
 
+[![Validação Windows](https://github.com/MakenRosa/folio/actions/workflows/ci.yml/badge.svg)](https://github.com/MakenRosa/folio/actions/workflows/ci.yml)
+
 Leitor de PDF para Windows com biblioteca local, retomada de leitura e controles
 de conforto. Feito com Tauri 2, Rust, TypeScript e PDF.js, sem conta ou servidor.
 
@@ -39,6 +41,8 @@ Microsoft C++ Build Tools e WebView2. O runtime WebView2 precisa estar instalado
 Outros sistemas não foram validados.
 
 ```powershell
+git clone https://github.com/MakenRosa/folio.git
+cd folio
 npm ci
 npm run tauri -- dev
 ```
@@ -77,9 +81,9 @@ de `test-results/native/`. Ela valida o destino antes de importar documentos e
 encerra somente o processo que iniciou. Não use uma biblioteca pessoal como
 fixture de teste. Evidências locais ficam em `test-results/` e não entram no ZIP.
 
-O workflow de Windows está em `.github/workflows/ci.yml`. Ele será executado
-quando o código estiver em um repositório GitHub com Actions habilitado.
-Os resultados documentados nesta versão são de execução local.
+O [workflow de Windows](https://github.com/MakenRosa/folio/actions/workflows/ci.yml)
+é executado em pushes para `main` e pull requests. Os resultados documentados
+em `VALIDATION.md` são da execução local; o histórico remoto está no GitHub Actions.
 
 ## Dados e decisões técnicas
 

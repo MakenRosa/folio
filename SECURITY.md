@@ -14,9 +14,9 @@ Descreva a versão, os passos mínimos de reprodução e o impacto. Use um PDF
 artificial. Evite publicar documentos pessoais, segredos ou uma exploração de
 alto impacto em uma issue pública.
 
-Quando o repositório for publicado, o responsável deve habilitar o canal privado
-de relato do GitHub antes de anunciar esse canal aos usuários. Este documento não
-promete uma equipe de segurança ou um prazo de resposta que ainda não existem.
+Use o [canal privado de relato do GitHub](https://github.com/MakenRosa/folio/security/advisories/new),
+habilitado neste repositório. Este documento não promete uma equipe de segurança
+ou um prazo de resposta que ainda não existem.
 
 ## Distribuição
 
