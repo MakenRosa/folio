@@ -1,0 +1,16 @@
+node_modules/
+dist/
+src-tauri/target/
+test-results/
+tmp/
+release/
+public/pdfjs/
+public/licenses/
+src-tauri/gen/
+tests/fixtures/
+tests/runtime/
+.env
+.env.*
+*.log
+__pycache__/
+*.pyc
