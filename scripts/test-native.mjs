@@ -46,21 +46,30 @@ let app;
 async function launch() {
   app = spawn(path.join(root, 'src-tauri/target/debug/lume-pdf.exe'), [], {
     cwd: root,
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
     env: { ...env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}` },
   });
-  for (let attempt = 0; attempt < 120; attempt++) {
-    if (app.exitCode !== null) throw new Error('Isolated app exited before becoming ready.');
+  // Kept for the error below: a panic or a WebView2 failure is told on stderr.
+  let stderr = '';
+  app.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
+  // The first WebView2 start on a fresh CI machine can take far longer than on a desktop.
+  let last = 'no answer yet';
+  for (let attempt = 0; attempt < 480; attempt++) {
+    if (app.exitCode !== null)
+      throw new Error(`Isolated app exited before becoming ready (${app.exitCode}).\n${stderr}`);
     try {
       const response = await fetch(`${env.FOLIO_CDP_URL}/json/list`);
-      if ((await response.json()).some((tab) => tab.url?.includes('tauri.localhost'))) return;
-    } catch {
+      const tabs = await response.json();
+      if (tabs.some((tab) => tab.url?.includes('tauri.localhost'))) return;
+      last = `pages: ${tabs.map((tab) => tab.url).join(', ') || 'none'}`;
+    } catch (error) {
       /* WebView2 is still starting. */
+      last = String(error?.cause?.code || error);
     }
     await delay(250);
   }
-  throw new Error('Timed out starting the isolated WebView2.');
+  throw new Error(`Timed out starting the isolated WebView2 (last: ${last}).\n${stderr}`);
 }
 async function waitClosed() {
   for (let i = 0; i < 80 && app.exitCode === null; i++) await delay(100);
