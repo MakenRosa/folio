@@ -1,16 +1,42 @@
-import type { Book, BookGoal, DailyGoal, Preferences } from '../types';
+import type { Book, DailyGoal, GoalUnit, Preferences } from '../types';
 import { dayCount, dayRecord, goalProgress, localDay, ownGoal, withDay } from '../reading/goals';
 import { $, esc, ib } from './dom';
 import { modal, fail, toast } from './overlays';
 import { rememberGoal } from '../reading/history';
 
+const unitName = (unit: GoalUnit) => (unit === 'pages' ? 'páginas' : 'capítulos');
 export function goalLabel(goal: DailyGoal, count: number) {
-  return `${count} / ${goal.target} ${goal.unit === 'pages' ? 'páginas' : 'capítulos'}${count >= goal.target ? ' · Meta atingida' : ''}`;
+  return `${count} / ${goal.target} ${unitName(goal.unit)}${count >= goal.target ? ' · Meta atingida' : ''}`;
 }
+// What a goal says of today, in the words of the dialog: "1 de 2 capítulos".
+const progressText = (goal: DailyGoal, count: number) =>
+  `${count} de ${goal.target} ${unitName(goal.unit)}${count >= goal.target ? ' · Meta atingida' : ''}`;
+// The text of today under a goal and, under it, how far the day is. Nothing when there is no goal.
+const status = (goal: DailyGoal | null, count: number, id: string, label: string) =>
+  goal
+    ? `<div class="goal-today"><span>Hoje</span><strong id="${id}">${esc(progressText(goal, count))}</strong></div><progress aria-label="${label}" aria-describedby="${id}" max="${goal.target}" value="${Math.min(count, goal.target)}"></progress>`
+    : '';
+// Two options of one choice: radio buttons that look like a pair of buttons. The one that is on
+// starts the dialog when `focus` is set.
+type Option = { value: string; label: string; id: string; on: boolean };
+const choice = (name: string, options: Option[], focus = false) =>
+  `<div class="goal-choices">${options
+    .map(
+      (o) =>
+        `<label class="goal-choice"><input type="radio" name="${name}" id="${o.id}" value="${o.value}"${o.on ? ' checked' : ''}${o.on && focus ? ' autofocus' : ''}>${o.label}</label>`,
+    )
+    .join('')}</div>`;
+// The quantity and the unit of a goal: the same two fields for the general goal and for the one of a
+// document, with the ids of `prefix`, starting from `goal`. They are only there while the goal is on.
+const fields = (prefix: string, goal: DailyGoal | null, on: boolean) =>
+  `<div id="${prefix}-fields" class="goal-fields"${on ? '' : ' hidden'}><div><label class="field-label" for="${prefix}-target">Quantidade por dia</label><input id="${prefix}-target" class="text-field" type="number" min="1" max="10000" step="1" value="${goal?.target ?? 10}" required></div><div><label class="field-label" for="${prefix}-unit">Medir em</label><select id="${prefix}-unit" class="text-field"><option value="pages"${goal?.unit === 'chapters' ? '' : ' selected'}>Páginas</option><option value="chapters"${goal?.unit === 'chapters' ? ' selected' : ''}>Capítulos</option></select></div></div>`;
+// The goals of the library and, when the dialog comes from a document (`initial`: its menu, the
+// reader's menu or the footer of the reader), the one of that document. The document that is set up
+// is told by where the dialog was opened, and is not chosen in it.
 export function showGoals(
   prefs: Preferences,
   actions: {
-    // The documents of the library, to choose from.
+    // The documents of the library.
     books: () => Book[];
     // All the documents that have days, also those in Removidos and those deleted for good: the
     // general goal counts the reading of all of them.
@@ -21,77 +47,129 @@ export function showGoals(
   },
   initial?: string,
 ) {
-  let scope = initial || 'global',
-    drawn = false;
-  // What the goal of the scope says of today: the goal of a document that has one, else the general
-  // goal. It is drawn again, alone, when the day's total changes.
-  const today = (book?: Book) => {
+  let drawn = false;
+  const find = () => actions.books().find((b) => b.id === initial);
+  // The general goal is measured by all the reading of the day. A document that has a goal of its own
+  // is measured by its own reading, and only then does it show a progress.
+  const generalStatus = () => {
+    const { goal, count } = goalProgress(undefined, prefs.dailyGoal, actions.counted());
+    return status(goal, count, 'goal-current', 'Progresso da meta geral de hoje');
+  };
+  const ownStatus = (book: Book) => {
     const { goal, own, count } = goalProgress(book, prefs.dailyGoal, actions.counted());
-    const title = !book ? 'Hoje' : own ? 'Hoje · meta própria' : 'Hoje · meta geral';
-    return `<strong>${title}</strong><span id="goal-current">${goal ? esc(goalLabel(goal, count)) : 'Nenhuma meta geral ativa'}</span>${goal ? `<progress aria-label="Progresso da meta de hoje" max="${goal.target}" value="${Math.min(count, goal.target)}"></progress>` : ''}`;
+    return own
+      ? status(goal, count, 'goal-own-current', 'Progresso da meta deste documento hoje')
+      : '';
   };
   const render = () => {
     const books = actions.books();
-    const book = books.find((b) => b.id === scope);
-    if (!book) scope = 'global';
+    const book = find();
     // A document has two settings: no goal of its own ('inherit', which is also how the older 'none'
-    // is read) or one of its own. The library has the general goal, or none.
-    const own = book && ownGoal(book.readingGoal);
-    const mode = book ? (own ? 'custom' : 'inherit') : prefs.dailyGoal ? 'custom' : 'none';
-    const start = own ?? prefs.dailyGoal;
-    const unit = start?.unit || 'pages';
-    const target = start?.target || 10;
-    const d = modal(
-      `<div class="dialog-heading"><div><span class="eyebrow">UM POUCO A CADA DIA</span><h2>Metas de leitura</h2></div>${ib('goals-close', 'Fechar metas', 'close', 'data-close')}</div>
-      <label class="field-label" for="goal-scope">Configurar para</label><select id="goal-scope" class="text-field"><option value="global">Biblioteca inteira</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select>
-      <p class="mode-description">${book ? 'Sem meta própria, a leitura deste documento entra só na meta geral. Com meta própria, ela conta também para o alvo do documento e continua entrando na meta geral.' : 'A meta geral conta toda a leitura do dia, em qualquer documento, com ou sem meta própria.'}</p>
-      <div class="goal-status">${today(book)}</div>
-      <label class="field-label" for="goal-mode">${book ? 'Meta do documento' : 'Meta diária'}</label><select id="goal-mode" class="text-field">${book ? '<option value="inherit">Sem meta própria</option><option value="custom">Meta própria</option>' : '<option value="custom">Definir meta geral</option><option value="none">Sem meta geral</option>'}</select>
-      <div id="goal-fields" class="goal-fields"><div><label class="field-label" for="goal-target">Quantidade por dia</label><input id="goal-target" class="text-field" type="number" min="1" max="10000" step="1" value="${target}" required></div><div><label class="field-label" for="goal-unit">Medir em</label><select id="goal-unit" class="text-field"><option value="pages">Páginas</option><option value="chapters">Capítulos</option></select></div></div>
-      <details class="goal-rules"><summary>Como a contagem funciona</summary><p class="mode-description">A leitura é acompanhada mesmo sem meta. Páginas do PDF, não telas do Kindle, contam após 8 segundos com o leitor ativo. Voltar à mesma página não soma novamente no dia. Capítulos contam ao avançar da última página acompanhada para o próximo capítulo reconhecido, ou ao chegar ao fim do documento. Saltos não contam páginas intermediárias. Você pode corrigir os totais abaixo.</p><p class="mode-description">O dia muda à meia-noite do seu computador. Os totais diários ficam salvos localmente no histórico. Concluir um documento não acrescenta automaticamente suas páginas à meta.</p></details>
-      <div class="dialog-actions"><button id="goal-history" class="secondary">Ver histórico</button><button id="goal-save" class="primary">Salvar meta</button></div>
-      <details class="goal-adjust"><summary>Ajustar leitura de hoje</summary><p class="mode-description">Use para registrar leitura feita antes da atualização, fora do Fólio ou em capítulos não reconhecidos. Informe o total de hoje, não um acréscimo.</p><label class="field-label" for="goal-log-book">Documento</label><select id="goal-log-book" class="text-field">${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select><div class="goal-fields"><div><label class="field-label" for="goal-pages">Páginas lidas hoje</label><input id="goal-pages" class="text-field" type="number" min="0" max="100000" step="1" required></div><div><label class="field-label" for="goal-chapters">Capítulos concluídos hoje</label><input id="goal-chapters" class="text-field" type="number" min="0" max="100000" step="1" required></div></div><button id="goal-log-save" class="secondary">Salvar leitura de hoje</button></details>
+    // is read) or one of its own. The general goal is there or it is not.
+    const general = prefs.dailyGoal;
+    const own = book ? ownGoal(book.readingGoal) : null;
+    modal(
+      `<div class="dialog-heading"><h2>Metas de leitura</h2><div class="heading-tools"><button id="goal-history" class="text-button">Ver histórico</button>${ib('goals-close', 'Fechar metas', 'close', 'data-close')}</div></div>
+      <p class="goal-rule">${book ? 'A meta geral conta tudo o que você ler no dia. A meta própria é um alvo extra deste documento.' : 'A meta geral conta tudo o que você ler no dia. Para dar uma meta própria a um documento, use o menu dele.'}</p>
+      <fieldset class="goal-part" id="goal-general"><legend>Meta geral</legend>
+        ${choice(
+          'goal-mode',
+          [
+            { value: 'none', label: 'Sem meta geral', id: 'goal-mode-none', on: !general },
+            { value: 'custom', label: 'Com meta geral', id: 'goal-mode-custom', on: !!general },
+          ],
+          true,
+        )}
+        ${fields('goal', general, !!general)}
+        <div class="goal-foot"><div id="goal-status" class="goal-status">${generalStatus()}</div><button id="goal-save" class="primary" aria-label="Salvar meta geral">Salvar</button></div>
+      </fieldset>
+      ${
+        book
+          ? `<fieldset class="goal-part" id="goal-own"><legend>Este documento</legend><p class="goal-doc-name" title="${esc(book.title)}">${esc(book.title)}</p>
+        ${choice('goal-own-mode', [
+          { value: 'inherit', label: 'Sem meta própria', id: 'goal-own-inherit', on: !own },
+          { value: 'custom', label: 'Meta própria', id: 'goal-own-custom', on: !!own },
+        ])}
+        ${fields('goal-own', own ?? general, !!own)}
+        <div class="goal-foot"><div id="goal-own-status" class="goal-status">${ownStatus(book)}</div><button id="goal-own-save" class="primary" aria-label="Salvar meta deste documento">Salvar</button></div>
+      </fieldset>`
+          : ''
+      }
+      ${
+        books.length
+          ? `<details class="goal-adjust"><summary>Ajustar leitura de hoje</summary><p class="mode-description">Use para registrar leitura feita fora do Fólio ou em capítulos não reconhecidos. Informe o total de hoje${book ? ' neste documento' : ''}, não um acréscimo.</p>${book ? '' : `<label class="field-label" for="goal-log-book">Documento</label><select id="goal-log-book" class="text-field">${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select>`}<div class="goal-fields"><div><label class="field-label" for="goal-pages">Páginas lidas hoje</label><input id="goal-pages" class="text-field" type="number" min="0" max="100000" step="1" required></div><div><label class="field-label" for="goal-chapters">Capítulos concluídos hoje</label><input id="goal-chapters" class="text-field" type="number" min="0" max="100000" step="1" required></div></div><button id="goal-log-save" class="secondary">Salvar leitura de hoje</button></details>`
+          : ''
+      }
+      <details class="goal-rules"><summary>Como a contagem funciona</summary><p class="mode-description">A leitura é acompanhada mesmo sem meta. Uma página do PDF conta depois de 8 segundos com o leitor ativo, e só uma vez por dia; as telas do Kindle não são páginas. Um capítulo conta ao passar da última página lida para o capítulo seguinte, ou ao chegar ao fim do documento. Saltos não contam as páginas do meio.</p><p class="mode-description">O dia muda à meia-noite do seu computador, e os totais ficam salvos no histórico. Concluir um documento não soma as páginas dele à meta. Para corrigir um total, use Ajustar leitura de hoje.</p></details>
       `,
       drawn,
     );
     drawn = true;
-    $<HTMLSelectElement>('#goal-scope').value = scope;
-    $('#goal-scope').onchange = () => {
-      scope = $<HTMLSelectElement>('#goal-scope').value;
-      render();
-    };
-    $<HTMLSelectElement>('#goal-mode').value = mode;
-    $<HTMLSelectElement>('#goal-unit').value = unit;
-    const fields = () => {
-      $('#goal-fields').hidden = $<HTMLSelectElement>('#goal-mode').value !== 'custom';
-    };
-    fields();
-    $('#goal-mode').onchange = fields;
     $('#goal-history').onclick = () => actions.history(book?.id);
+    // The quantity and the unit are only asked for while there is a goal to set.
+    const toggleFields = (prefix: string, on: string) => {
+      const custom = $<HTMLInputElement>(`#${on}`);
+      const show = () => ($(`#${prefix}-fields`).hidden = !custom.checked);
+      document
+        .querySelectorAll<HTMLInputElement>(`input[name="${custom.name}"]`)
+        .forEach((radio) => (radio.onchange = show));
+    };
+    toggleFields('goal', 'goal-mode-custom');
+    // Each part saves on its own and the dialog stays open, with the day drawn again: the result is
+    // seen, and what was typed in the other part is not lost.
+    const paint = () => {
+      $('#goal-status').innerHTML = generalStatus();
+      const fresh = book && find();
+      if (fresh) $('#goal-own-status').innerHTML = ownStatus(fresh);
+    };
     $('#goal-save').onclick = async () => {
-      const mode = $<HTMLSelectElement>('#goal-mode').value as BookGoal['mode'];
+      const custom = $<HTMLInputElement>('#goal-mode-custom').checked;
       const input = $<HTMLInputElement>('#goal-target');
-      if (mode === 'custom' && !input.reportValidity()) return;
-      const selected = {
-        unit: $<HTMLSelectElement>('#goal-unit').value as DailyGoal['unit'],
-        target: mode === 'custom' ? Number(input.value) : 10,
-      };
+      if (custom && !input.reportValidity()) return;
       try {
-        if (book) await actions.save(book.id, { readingGoal: { ...selected, mode } });
-        else {
-          prefs.dailyGoal = mode === 'custom' ? selected : null;
-          rememberGoal(prefs);
-        }
+        prefs.dailyGoal = custom
+          ? {
+              unit: $<HTMLSelectElement>('#goal-unit').value as GoalUnit,
+              target: Number(input.value),
+            }
+          : null;
+        rememberGoal(prefs);
         actions.apply();
-        d.close();
-        toast('Meta salva.');
+        paint();
+        toast('Meta geral salva.');
       } catch (e) {
-        fail(e, 'Não foi possível salvar a meta.');
+        fail(e, 'Não foi possível salvar a meta geral.');
       }
     };
-    if (book) $<HTMLSelectElement>('#goal-log-book').value = book.id;
-    const logBook = () =>
-      actions.books().find((b) => b.id === $<HTMLSelectElement>('#goal-log-book').value);
+    if (book) {
+      toggleFields('goal-own', 'goal-own-custom');
+      $('#goal-own-save').onclick = async () => {
+        const custom = $<HTMLInputElement>('#goal-own-custom').checked;
+        const input = $<HTMLInputElement>('#goal-own-target');
+        if (custom && !input.reportValidity()) return;
+        try {
+          await actions.save(book.id, {
+            readingGoal: {
+              unit: $<HTMLSelectElement>('#goal-own-unit').value as GoalUnit,
+              target: custom ? Number(input.value) : 10,
+              mode: custom ? 'custom' : 'inherit',
+            },
+          });
+          actions.apply();
+          paint();
+          toast('Meta deste documento salva.');
+        } catch (e) {
+          fail(e, 'Não foi possível salvar a meta deste documento.');
+        }
+      };
+    }
+    if (!books.length) return;
+    // The adjustment is of the document that the dialog came from. From the library there is none,
+    // and the document is chosen here, in the adjustment only.
+    const logBook = () => {
+      const id = book ? book.id : $<HTMLSelectElement>('#goal-log-book').value;
+      return actions.books().find((b) => b.id === id);
+    };
     const fill = () => {
       const b = logBook();
       $<HTMLInputElement>('#goal-pages').value = String(b ? dayCount(b, 'pages') : 0);
@@ -99,7 +177,7 @@ export function showGoals(
       $('#goal-log-save').toggleAttribute('disabled', !b);
     };
     fill();
-    $('#goal-log-book').onchange = fill;
+    if (!book) $('#goal-log-book').onchange = fill;
     // Do not apply yesterday's open form to the next day's ledger.
     const openedDay = localDay();
     $('#goal-log-save').onclick = async () => {
@@ -123,9 +201,8 @@ export function showGoals(
           }),
         });
         actions.apply();
-        // Only the total of today changes: the rest of the dialog, the focus and what was typed stay.
-        const books = actions.books();
-        $('.goal-status').innerHTML = today(books.find((x) => x.id === scope));
+        // Only the totals of today change: the rest of the dialog, the focus and what was typed stay.
+        paint();
         fill();
         toast('Leitura de hoje atualizada.');
       } catch (e) {

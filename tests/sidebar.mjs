@@ -13,6 +13,14 @@ const results = [];
 let page;
 await mkdir('test-results/sidebar', { recursive: true });
 const click = (selector) => page.locator(selector).click();
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 const settle = (ms = 500) => page.waitForTimeout(ms);
 const prefs = () => page.evaluate(() => JSON.parse(localStorage.getItem('lume.preferences')));
 const saved = async () => {
@@ -904,7 +912,8 @@ try {
     await settle(800);
     assert.equal((await side()).width, 320);
     const choose = async (theme, paper) => {
-      await click('#reader-settings');
+      await menu('preferences');
+      await section('aparencia');
       await page.locator('#pref-theme').selectOption(theme);
       await page.locator(`button[data-paper="${paper}"]`).click();
       await click('#close-settings');
@@ -963,7 +972,8 @@ try {
     assert.deepEqual([wide.width, wide.max], [220, 480]);
     assert.deepEqual(await bars(), NO_OVERFLOW);
     // Back to the defaults for the next scenarios.
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await page.locator('#pref-theme').selectOption('light');
     await page.locator('button[data-paper="light"]').click();
     await click('#close-settings');

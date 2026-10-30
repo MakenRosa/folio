@@ -65,6 +65,13 @@ tela atravessa a divisão entre duas páginas do PDF.
   diz quais arquivos ficaram. O arquivo original, fora da biblioteca, não é afetado, e o histórico
   de leitura é mantido. Reimportar o mesmo PDF depois cria um documento novo.
 - Busca textual no PDF, seleção, sumário, zoom, rotação, marcas e notas.
+- **Barras do leitor.** O cabeçalho tem Voltar, o título, **Concluir leitura**, o favorito e o
+  menu **⋯**. A barra de ferramentas tem, à esquerda, a barra lateral, a busca e a página; à
+  direita, o zoom, o modo **Kindle** e as **duas páginas**, a marca da página, **Aparência** e a
+  tela cheia. O menu **⋯** reúne **Ler do início**, **Girar página** (tecla R, com **Desfazer**),
+  Meta de leitura…, Renomear na biblioteca…, Etiquetas…, Exportar uma cópia…, Exportar notas…,
+  Preferências…, Guia e atalhos… (F1) e Remover da biblioteca. O rodapé mostra o progresso à
+  esquerda e, à direita, a meta do dia e **Adicionar nota**.
 - **Notas e realces no próprio texto.** Ao selecionar um trecho (com o mouse ou pelo teclado), uma
   barra pequena aparece junto à seleção (acima da primeira linha, quando há espaço), sem cobri-la nem sair da janela: **Realçar** em
   amarelo, verde, azul ou rosa, **Adicionar nota** (abre a nota com a citação e as linhas do trecho) e
@@ -93,11 +100,19 @@ tela atravessa a divisão entre duas páginas do PDF.
   do dia, em qualquer documento, também nos de Removidos e nos excluídos definitivamente.
   Cada documento fica sem meta própria (só entra na meta geral) ou tem uma meta própria, que
   também entra na meta geral. A biblioteca mostra o progresso da meta geral; o rodapé do
-  leitor mostra o da meta do documento, quando ele tem uma, ou o da geral. Ajuste os totais
-  de hoje quando necessário.
+  leitor mostra o da meta do documento, quando ele tem uma, ou o da geral. O diálogo tem duas
+  partes, cada uma com o seu **Salvar**: **Meta geral** (quantidade em páginas ou capítulos, ou
+  sem meta geral, com o progresso de hoje e uma barra) e, quando ele é aberto a partir de um
+  documento (menu do cartão, menu ⋯ ou rodapé do leitor), **Este documento**, com "Sem meta
+  própria" ou "Meta própria". Não há lista de documentos para escolher: para configurar outro,
+  abra o menu dele. **Ajustar leitura de hoje** (do documento aberto; pela biblioteca, o
+  documento é escolhido no próprio ajuste) e **Como a contagem funciona** ficam recolhidos no
+  fim, e **Ver histórico** é um link junto ao título.
 - Interface clara/escura/sistema, papel claro/sépia/escuro, tela quente e brilho
-  da leitura de 10% a 100%, combináveis e salvos automaticamente. Brilho e tela quente
-  têm ajustes rápidos na barra de leitura.
+  da leitura de 10% a 100%, combináveis e salvos automaticamente. O botão **Aparência**, na
+  barra de leitura, abre um painel com o papel, o brilho (**Restaurar**), a tela quente
+  (**Desativar**) e **Mais preferências…**, que leva à seção Aparência das Preferências; um ponto no
+  ícone avisa que o brilho ou a tela quente estão alterados. A tecla D percorre os papéis.
 - Modo Kindle com avanço instantâneo por telas e pequena sobreposição para
   preservar linhas cortadas. A opção **Unir conteúdo das páginas**, ativada por
   padrão, reduz margens vazias entre páginas. Aceita teclado e roda do mouse.
@@ -106,8 +121,8 @@ tela atravessa a divisão entre duas páginas do PDF.
   após a última tela do trecho anterior. Pode ser desativado nas preferências.
 - **Progresso e tempo restante.** O percentual vai de 0% na primeira página a 100%
   na última, ou em documentos concluídos, e é o mesmo no rodapé do leitor (rolagem e
-  Kindle) e na biblioteca. Depois de cinco páginas lidas de um documento, o rodapé e o
-  cartão Continuar leitura estimam o tempo restante no capítulo, quando há capítulos
+  Kindle) e na biblioteca. Depois de cinco páginas lidas de um documento, o rodapé e a
+  faixa Continuar estimam o tempo restante no capítulo, quando há capítulos
   reconhecidos, e no documento.
 - **Duas páginas lado a lado** na rolagem contínua, para monitores largos. Escolha
   **Duas páginas** ou **Duas páginas, capa separada** (a página 1 fica sozinha) no
@@ -131,7 +146,7 @@ tela atravessa a divisão entre duas páginas do PDF.
   enquanto o documento está aberto. Rolar e virar página não contam como salto. Para voltar à
   biblioteca use o botão do topo ou **Ctrl + W**.
 - **Menus que cabem na tela e funcionam pelo teclado.** O menu de opções de um documento,
-  o botão "Mais opções" do leitor e os ajustes de Brilho e Tela quente abrem abaixo do botão
+  o botão "Mais opções" do leitor e o painel Aparência abrem abaixo do botão
   ou, quando faltar espaço, acima dele, sempre dentro da janela, e fecham ao rolar a
   biblioteca ou redimensionar a janela. No menu, o foco vai ao primeiro item; use as setas,
   Home, End ou a primeira letra de um item, Esc para fechar (o foco volta ao botão) ou Tab para

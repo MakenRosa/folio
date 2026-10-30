@@ -1,7 +1,7 @@
 import './style.css';
 import { icon } from './icons';
 import { $, documents, esc, size, ib } from './ui/dom';
-import { appShell, SAVE_STATUS } from './ui/shell';
+import { appShell, SAVE_STATUS, SLOW_SAVE } from './ui/shell';
 import {
   toast,
   announce,
@@ -28,7 +28,7 @@ import {
 } from './ui/library-view';
 import { showTags } from './ui/tags-dialog';
 import { confirmPurge } from './ui/purge-dialog';
-import { showPreferences } from './ui/preferences-dialog';
+import { showPreferences, type PreferencesSection } from './ui/preferences-dialog';
 import { showHelp } from './ui/help-dialog';
 import { bindShortcuts, SPREAD_KINDLE_NOTE } from './ui/shortcuts';
 import { WorkQueue } from './library/queue';
@@ -46,7 +46,7 @@ import {
   type NotesState,
 } from './ui/notes-panel';
 import { copyText } from './ui/clipboard';
-import { bindReadingComfort, syncReadingComfort } from './ui/reading-comfort';
+import { PAPER_CHOICES, bindReadingComfort, syncReadingComfort } from './ui/reading-comfort';
 import { showGoals, goalLabel } from './ui/goals-dialog';
 import { showHistory } from './ui/history-dialog';
 import { OutlineView, NO_DESTINATION, type OutlineState } from './ui/outline-view';
@@ -128,8 +128,8 @@ let loading = false,
   warned = '';
 // What the toolbar button and the L key turn on: the two-page layout last chosen.
 let pairLayout: Exclude<Spread, 'none'> = 'odd';
-// The papers, in the order that the button and the D key go through them.
-const PAPERS: Preferences['paper'][] = ['light', 'sepia', 'dark'];
+// The papers, in the order that the D key goes through them (the Aparência panel lists the same).
+const PAPERS = PAPER_CHOICES.map(([paper]) => paper);
 const PAPER_NAMES: Record<Preferences['paper'], string> = {
   light: 'claro',
   sepia: 'sépia',
@@ -186,7 +186,7 @@ const selectionBar = new SelectionBar({
       ? 'Trecho selecionado. H realça, N adiciona nota e Esc cancela.'
       : 'Trecho selecionado. Esc cancela.',
 });
-bindReadingComfort(prefs, applyPrefs);
+bindReadingComfort(prefs, applyPrefs, () => preferences('aparencia'));
 function renderLibrary() {
   // A tag that no document has any more is no filter: back to the whole library.
   const tag = filterTag(filter);
@@ -227,8 +227,9 @@ function bookEnriched(updated: Book) {
   if (!updateBookCard({ snapshot, filter, query, prefs, selected }, updated, before))
     keepLibraryView(renderLibrary);
 }
-function preferences() {
-  showPreferences(prefs, { folder: snapshot.folder, applyPrefs, setReadingMode });
+// `section` is the tab the dialog opens on; without it, the one that was used last.
+function preferences(section?: PreferencesSection) {
+  showPreferences(prefs, { folder: snapshot.folder, applyPrefs, setReadingMode }, section);
 }
 function applyPrefs() {
   Object.assign(prefs, normalizePreferences(prefs));
@@ -258,11 +259,6 @@ function applyPrefs() {
   updateGoals();
   syncReadingComfort(prefs);
   updateReaderMeta();
-  // The button goes round the three papers (and so does the D key): its name says which is on and
-  // which comes next, and the sample on it (ui.css) is the one that is on.
-  const paperLabel = `Papel ${PAPER_NAMES[prefs.paper]}. Mudar para ${PAPER_NAMES[nextPaper(prefs.paper)]} (D)`;
-  $('#paper-toggle').setAttribute('aria-label', paperLabel);
-  $('#paper-toggle').title = paperLabel;
   // Grid and list are one choice (a radio group): only the chosen one is a tab stop.
   for (const view of ['grid', 'list']) {
     const on = prefs.view === view,
@@ -389,7 +385,10 @@ function settleFocus() {
   (first ?? $('#library-search')).focus({ preventScroll: true });
 }
 // The options of a document, from the button of its card, the reader, or a right click.
-// A document in Removidos has one: restore it.
+// A document in Removidos has one: restore it. In the reader the menu is the one of the document that
+// is open: what does something to the reading (Ler do início, Girar página) comes first, then what
+// is of the document, then the preferences and the guide. "Marcar como concluído" is not in it, for
+// the header has Concluir leitura; the card of the library keeps it.
 function bookMenu(
   anchor: HTMLElement,
   b: Book,
@@ -402,11 +401,25 @@ function bookMenu(
   const removed = snapshot.trash.some((x) => x.id === b.id);
   // In the reader the document is already open: "Abrir documento" would only load it again.
   const reading = current?.id === b.id;
+  const goal = `<button data-action="goal">${icon('target')} Meta de leitura…</button>`,
+    restart = `<button data-action="restart">${icon('restart')} Ler do início</button>`,
+    rename = `<button data-action="rename">${icon('edit')} Renomear na biblioteca…</button>`,
+    tags = `<button data-action="tags">${icon('tag')} Etiquetas…</button>`,
+    exportCopy = `<button data-action="export">${icon('download')} Exportar uma cópia…</button>`,
+    exportNotesItem = `<button data-action="export-notes">${icon('note')} Exportar notas…</button>`,
+    remove = `<button data-action="remove" class="danger">${icon('archive')} Remover da biblioteca</button>`;
+  // The keys are shown with the action, as the other shortcuts are: R only while the keys of one
+  // letter are on, and F1 always.
+  const rotate = `<button data-action="rotate"${prefs.singleKeys ? ' aria-keyshortcuts="R"' : ''}>${icon('rotate')} Girar página${prefs.singleKeys ? '<kbd aria-hidden="true">R</kbd>' : ''}</button>`,
+    preferencesItem = `<button data-action="preferences">${icon('settings')} Preferências…</button>`,
+    help = `<button data-action="help" aria-keyshortcuts="F1">${icon('help')} Guia e atalhos…<kbd aria-hidden="true">F1</kbd></button>`;
   popover(
     anchor,
     removed
       ? `<button data-action="restore">${icon('undo')} Restaurar</button><hr><button data-action="purge" class="danger">${icon('trash')} Excluir definitivamente</button>`
-      : `${reading ? '' : `<button data-action="open">${icon('book')} Abrir documento</button>`}<button data-action="goal">${icon('target')} Meta de leitura…</button><button data-action="restart">${icon('restart')} Ler do início</button><button data-action="rename">${icon('edit')} Renomear na biblioteca…</button><button data-action="tags">${icon('tag')} Etiquetas…</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia…</button><button data-action="export-notes">${icon('note')} Exportar notas…</button>${reading ? `<hr><button data-action="help">${icon('help')} Guia e atalhos…</button>` : ''}<hr><button data-action="remove" class="danger">${icon('archive')} Remover da biblioteca</button>`,
+      : reading
+        ? `${restart}${rotate}<hr>${goal}${rename}${tags}${exportCopy}${exportNotesItem}<hr>${preferencesItem}${help}<hr>${remove}`
+        : `<button data-action="open">${icon('book')} Abrir documento</button>${goal}${restart}${rename}${tags}<button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button>${exportCopy}${exportNotesItem}<hr>${remove}`,
     { ...options, menu: true, label: `Opções de ${b.title}` },
   );
   $('#popover')
@@ -448,6 +461,12 @@ function bookMenu(
                 break;
               case 'export-notes':
                 await exportNotes(b);
+                break;
+              case 'rotate':
+                rotateWithUndo();
+                break;
+              case 'preferences':
+                preferences();
                 break;
               case 'help':
                 showHelp();
@@ -920,8 +939,14 @@ function queueReading(patch: Partial<Book>) {
   readingPatch = { ...readingPatch, ...patch };
   current = { ...current, ...patch };
   clearTimeout(saveTimer);
-  $('#save-status').textContent = SAVE_STATUS.saving;
   saveTimer = setTimeout(() => void flushReading(true).catch(() => {}), 450);
+}
+// The header of the reader says of saving only what the reader needs to know: nothing when it goes
+// well, "Salvando…" when it is slow, and the failure for as long as it lasts.
+function showSaveStatus(text: string) {
+  const status = $('#save-status');
+  status.textContent = text;
+  status.hidden = !text;
 }
 // Saves what the reading changed. A failure is told to the reader once (the reason, and that the
 // position was not saved) and the saving keeps trying, less often each time, until it works. Those
@@ -937,13 +962,18 @@ async function flushReading(quiet = false) {
   saveChain = saveChain
     .catch(() => {})
     .then(async () => {
-      await patchBook(id, patch);
+      const slow = setTimeout(() => showSaveStatus(SAVE_STATUS.saving), SLOW_SAVE);
+      try {
+        await patchBook(id, patch);
+      } finally {
+        clearTimeout(slow);
+      }
       saveFailures = 0;
-      $('#save-status').textContent = SAVE_STATUS.saved;
+      showSaveStatus('');
     })
     .catch((e) => {
       const first = saveFailures++ === 0;
-      $('#save-status').textContent = SAVE_STATUS.retrying;
+      showSaveStatus(SAVE_STATUS.retrying);
       if (current?.id === id) {
         readingPatch = { ...patch, ...readingPatch };
         saveTimer = setTimeout(
@@ -978,7 +1008,7 @@ async function openBook(book: Book, keepNotices = false) {
   $('#library').hidden = true;
   $('#reader').hidden = false;
   $('#reader-loading').hidden = false;
-  $('#save-status').textContent = SAVE_STATUS.idle;
+  showSaveStatus('');
   // The card that had the focus is gone from the screen: the way out of the loading is where it goes.
   $('#cancel-loading').focus({ preventScroll: true });
   updateReaderMeta();
@@ -1156,11 +1186,6 @@ function updateReaderMeta() {
     $('#reading-time').innerHTML = estimate;
     $('#reading-time').hidden = !left;
   }
-  $('#reading-label').textContent = current.finished
-    ? 'Leitura concluída'
-    : kindle
-      ? 'Kindle · ← → ou Espaço'
-      : `${size(current.size)} · Cópia local`;
   // The name stays; the state is in `aria-pressed` and in the colour, like the Kindle button.
   const finish = $('#finish-reading');
   finish.setAttribute('aria-pressed', String(current.finished));
@@ -1827,17 +1852,14 @@ $('.segmented').onkeydown = (e) => {
   renderLibrary();
   $(`#view-${view}`).focus();
 };
-$('#settings').onclick = preferences;
-$('#reader-settings').onclick = preferences;
+$('#settings').onclick = () => preferences();
 $('#help').onclick = showHelp;
 $('#theme-toggle').onclick = () => {
   prefs.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   applyPrefs();
 };
-$('#folder-link').onclick = () => void invoke('open_folder').catch(failing(FAILED.folder));
 $('#back').onclick = () => void closeReader().catch(failing(FAILED.back));
 $('#cancel-loading').onclick = () => void closeReader().catch(failing(FAILED.back));
-$('#restart').onclick = restartReading;
 $('#reader-favorite').onclick = () => current && void toggleFavorite(current.id);
 $('#reader-more').onclick = () => current && bookMenu($('#reader-more'), current);
 $('#finish-reading').onclick = () =>
@@ -1880,19 +1902,22 @@ function rotatePages(degrees = 90) {
   if (current) queueReading({ rotation: reader.rotation });
   return true;
 }
-$('#rotate').onclick = () => {
+// From the menu of the document and from the R key.
+function rotateWithUndo() {
   if (!rotatePages()) return;
   closeRotationNotice?.();
   closeRotationNotice = toast('Páginas giradas.', {
     label: 'Desfazer',
     run: () => void rotatePages(270),
   });
-};
+}
 $('#bookmark').onclick = () => void toggleBookmark().catch(failing(FAILED.bookmark));
-$('#paper-toggle').onclick = () => {
+// The D key: the paper goes on to the next, and the panel of Aparência (open or not) follows.
+function cyclePaper() {
   prefs.paper = nextPaper(prefs.paper);
   applyPrefs();
-};
+  announce(`Papel ${PAPER_NAMES[prefs.paper]}.`);
+}
 $('#fullscreen').onclick = () =>
   void chrome.toggle().then(() => {
     // Only the first time: the bars are away, and nothing on the screen says how to bring them back.
@@ -1965,6 +1990,8 @@ bindShortcuts({
   dismissSelection: () => selectionBar.dismiss(),
   singleKeys: () => prefs.singleKeys,
   showHelp,
+  cyclePaper,
+  rotate: rotateWithUndo,
   clearSearch: () => {
     if (!$<HTMLInputElement>('#library-search').value) return false;
     clearSearch();

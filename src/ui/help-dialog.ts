@@ -15,7 +15,7 @@ const SHORTCUTS = [
   ['Home / End', 'Início / fim no Kindle'],
   ['S', 'Mostrar ou esconder a barra lateral'],
   ['D', 'Mudar o papel: claro, sépia e escuro, em ciclo'],
-  ['R', 'Girar páginas'],
+  ['R', 'Girar páginas, com Desfazer (também em “Mais opções”)'],
   [
     'Shift + ← / →',
     'Selecionar o trecho por palavra (com o foco nas páginas, na rolagem e no Kindle)',
@@ -58,7 +58,7 @@ const TOPICS = [
   ],
   [
     '2. Leia no seu ritmo',
-    'A página, a posição e o zoom são salvos automaticamente. Brilho e Tela quente, na barra de leitura, ajustam o conforto rapidamente; as demais opções de aparência ficam nas preferências. Ative Kindle no topo do leitor para passar por telas, ou use o botão ao lado do zoom (ou a tecla L) para ver duas páginas lado a lado.',
+    'A página, a posição e o zoom são salvos automaticamente. Aparência, na barra de leitura, muda o papel (claro, sépia ou escuro), o brilho e a tela quente na hora, e “Mais preferências…” leva às demais opções; um ponto no ícone avisa que o brilho ou a tela quente estão alterados. Ative Kindle na barra de leitura (ou com a tecla K) para passar por telas, e use o botão ao lado dele (ou a tecla L) para ver duas páginas lado a lado.',
   ],
   [
     '3. Guarde o que importa',
@@ -66,13 +66,17 @@ const TOPICS = [
   ],
   [
     '4. Acompanhe sua leitura',
-    'Use Concluir leitura, no topo do leitor, para marcar um documento como concluído. Metas de leitura, na biblioteca, define a meta diária geral, que conta toda a leitura do dia, em qualquer documento. Cada documento fica sem meta própria (só entra na meta geral) ou tem uma meta própria, que também entra na meta geral. O progresso de hoje aparece no rodapé do leitor, com a meta do documento, se ele tem uma, ou a meta geral; clique nele para ajustar a configuração ou os totais do dia. Em Histórico de leitura, consulte o calendário, os dias com meta atingida e quantas páginas e capítulos leu em cada dia.',
+    'Use Concluir leitura, no topo do leitor, para marcar um documento como concluído. Metas de leitura tem duas partes: a meta geral, que conta tudo o que você ler no dia, em qualquer documento, e, quando aberta a partir de um documento (pelo menu dele ou pelo rodapé do leitor), a parte Este documento, com Sem meta própria ou Meta própria, um alvo extra só dele que também entra na meta geral. Para configurar outro documento, abra o menu dele. O progresso de hoje aparece no rodapé do leitor, com a meta do documento, se ele tem uma, ou a meta geral; clique nele para abrir as metas, ajustar a leitura de hoje ou ver o histórico. Em Histórico de leitura, consulte o calendário, os dias com meta atingida e quantas páginas e capítulos leu em cada dia.',
   ],
 ];
 const DETAILS = [
   [
     'Kindle e duas páginas',
     'O Kindle passa por telas no zoom atual, com uma pequena sobreposição, e usa uma página por vez. Use ← →, Espaço ou a roda do mouse para passar as telas, e Home e End para ir ao início e ao fim. A opção Unir conteúdo das páginas reduz margens vazias no Kindle e pode ser desativada nas preferências. O texto mantém sua diagramação, e páginas digitalizadas também funcionam. Na rolagem, em telas largas, as duas páginas ficam lado a lado, e as preferências deixam a capa sozinha.',
+  ],
+  [
+    'Barras do leitor',
+    'O cabeçalho tem Voltar, o título, Concluir leitura, o favorito e Mais opções (⋯). Esse menu reúne Ler do início, Girar páginas (R, com Desfazer), Meta de leitura…, Renomear na biblioteca…, Etiquetas…, Exportar uma cópia…, Exportar notas…, Preferências…, este guia (F1) e Remover da biblioteca. A barra de ferramentas tem, à esquerda, a barra lateral, a busca e a página; à direita, o zoom, o modo Kindle e as duas páginas, a marca da página, Aparência e a tela cheia. O rodapé mostra o progresso, a meta do dia e Adicionar nota.',
   ],
   [
     'Zoom, tela cheia e saltos',
@@ -94,6 +98,6 @@ const DETAILS = [
 const section = ([title, text]: string[]) => `<h3>${title}</h3><p>${text}</p>`;
 export function showHelp() {
   modal(
-    `<div class="scroll-dialog guide-view"><div class="dialog-heading"><div><span class="eyebrow">BEM-VINDO AO FÓLIO</span><h2 tabindex="-1" autofocus>Guia e atalhos</h2></div>${ib('close-help', 'Fechar guia', 'close', 'data-close')}</div><p>Um lugar tranquilo para seus PDFs, inteiramente no seu computador.</p>${TOPICS.map(section).join('')}<h3>Atalhos</h3><p>As teclas de uma letra (K, L, S, D, R, H e N) e o “?” podem ser desligados em Preferências, em “Atalhos de uma tecla”. F1 abre este guia sempre; no leitor, ele também está em “Mais opções”.</p><dl class="shortcuts">${SHORTCUTS.map(([k, v]) => `<div><dt>${v}</dt><dd><kbd>${k}</kbd></dd></div>`).join('')}</dl>${DETAILS.map(section).join('')}<p class="small-copy">A busca encontra texto existente no PDF; documentos digitalizados sem texto precisam de OCR externo. Para backup, copie a pasta inteira da biblioteca, incluindo o catálogo. PDFs removidos podem ser restaurados em “Removidos”, onde também podem ser excluídos de vez para liberar espaço: as cópias são excluídas, o original não é afetado e o histórico de leitura é mantido.</p><div class="dialog-actions"><button class="primary" data-close>Começar a ler</button></div></div>`,
+    `<div class="scroll-dialog guide-view"><div class="dialog-heading"><h2 tabindex="-1" autofocus>Guia e atalhos</h2>${ib('close-help', 'Fechar guia', 'close', 'data-close')}</div>${TOPICS.map(section).join('')}<h3>Atalhos</h3><p>As teclas de uma letra (K, L, S, D, R, H e N) e o “?” podem ser desligados em Preferências, em “Atalhos de uma tecla”. F1 abre este guia sempre; no leitor, ele também está em “Mais opções”.</p><dl class="shortcuts">${SHORTCUTS.map(([k, v]) => `<div><dt>${v}</dt><dd><kbd>${k}</kbd></dd></div>`).join('')}</dl>${DETAILS.map(section).join('')}<p class="small-copy">A busca encontra texto existente no PDF; documentos digitalizados sem texto precisam de OCR externo. Para backup, copie a pasta inteira da biblioteca, incluindo o catálogo. PDFs removidos podem ser restaurados em “Removidos”, onde também podem ser excluídos de vez para liberar espaço: as cópias são excluídas, o original não é afetado e o histórico de leitura é mantido.</p><div class="dialog-actions"><button class="primary" data-close>Fechar</button></div></div>`,
   );
 }

@@ -190,30 +190,21 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
     else b.removeAttribute('aria-current');
   });
   const tag = filterTag(filter);
-  const labels: Record<string, [string, string]> = {
-    all: ['Sua biblioteca', 'Boas leituras começam por aqui.'],
-    reading: ['Em leitura', 'Seu próximo capítulo está aqui.'],
-    favorites: ['Seus favoritos', 'As leituras que merecem ficar por perto.'],
-    finished: ['Leituras concluídas', 'Cada página, uma nova perspectiva.'],
-    trash: [
-      'Removidos',
-      'Restaure um documento quando quiser. As cópias ficam guardadas até você excluí-las de vez.',
-    ],
+  // The title is the name of the filter, as the side bar says it. Only Removidos has a line under it,
+  // and it says what is not obvious there: the copies stay until they are deleted.
+  const names: Record<string, string> = {
+    all: 'Todos os documentos',
+    reading: 'Em leitura',
+    favorites: 'Favoritos',
+    finished: 'Concluídos',
+    trash: 'Removidos',
   };
   const tagged = known.find((t) => t.key === tag);
-  if (tagged)
-    labels[filter] = [
-      `Etiqueta: ${tagged.label}`,
-      `Documentos que você marcou com “${tagged.label}”.`,
-    ];
-  const [title, subtitle] = labels[filter] ?? labels.all;
+  const title = tagged ? `Etiqueta: ${tagged.label}` : (names[filter] ?? names.all);
   $('#library-title').textContent = title;
-  $('#library-subtitle').textContent = subtitle;
-  $('#library-total').textContent =
-    `${documents(all.length)} · ${size(all.reduce((v, b) => v + b.size, 0))}`;
-  // It counts the library, not the list: in Removidos the list is the trash, and the bar under
-  // the title already says what is there.
-  $('#library-total').hidden = filter === 'trash';
+  $('#library-subtitle').textContent =
+    filter === 'trash' ? 'As cópias ficam guardadas até você excluí-las.' : '';
+  $('#library-subtitle').hidden = filter !== 'trash';
   // The goal is for reading: it stays out of Removidos, of a search and of the filters that are not
   // the reading itself.
   $('#library-goal').hidden = (filter !== 'all' && filter !== 'reading') || !!query;
@@ -244,6 +235,14 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
     selected,
     books.map((b) => b.id),
   );
+  // The count of what the list shows, at the left of its toolbar: a search says how many it found.
+  // Without a search it stays out of an empty list (the message says so) and of Removidos (the bar
+  // under the title already counts what is there).
+  const total = $('#library-total');
+  total.textContent = query
+    ? `${books.length} resultado${books.length === 1 ? '' : 's'}`
+    : `${documents(books.length)} · ${size(books.reduce((v, b) => v + b.size, 0))}`;
+  total.hidden = !query && (filter === 'trash' || !books.length);
   const recent = [...all]
     .filter((b) => b.lastOpened && !b.finished)
     .sort((a, b) => b.lastOpened - a.lastOpened)[0];
@@ -257,16 +256,12 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
       pages: recent.pages,
       secondsPerPage: secondsPerPage(prefs.pace, recent.id),
     });
-    continuation.innerHTML = `<div class="continue-art">${icon('book')}<span class="orbit orbit-one"></span><span class="orbit orbit-two"></span></div><div class="continue-info"><span class="eyebrow">UM BOM PONTO PARA RECOMEÇAR</span><h2>${esc(recent.title)}</h2><span>Página ${recent.page} de ${recent.pages} <span class="dot-separator">·</span> ${percent}% da leitura${left ? ` <span class="dot-separator">·</span> ≈ ${formatDuration(left.book)} para terminar` : ''}</span></div><button id="continue-read" class="primary">Continuar leitura ${icon('arrow')}</button>`;
-    // The book as it is when the button is pressed: the queue may have learned more since.
-    $('#continue-read').onclick = () =>
-      openBook(snapshot.books.find((x) => x.id === recent.id) ?? recent);
+    // One line: the cover, the title with where the reading is, the gauge and the way in. The click
+    // is anywhere on the strip; the button is the one that the keyboard and a screen reader reach.
+    continuation.innerHTML = `${cover(recent, snapshot.folder)}<div class="continue-info"><h2 title="${esc(recent.title)}">${esc(recent.title)}</h2><span class="continue-meta">Página ${recent.page}${recent.pages ? ` de ${recent.pages}` : ''} · ${percent}%${left ? ` · ≈ ${formatDuration(left.book)} para terminar` : ''}</span><div class="continue-bar" aria-hidden="true"><i style="width:${percent}%"></i></div></div><button id="continue-read" class="primary" aria-label="Continuar leitura de ${esc(recent.title)}">Continuar ${icon('arrow')}</button>`;
+    // The book as it is when the strip is pressed: the queue may have learned more since.
+    continuation.onclick = () => openBook(snapshot.books.find((x) => x.id === recent.id) ?? recent);
   }
-  $('#collection-label').textContent = query
-    ? `${books.length} RESULTADO${books.length === 1 ? '' : 'S'}`
-    : filter === 'all'
-      ? 'TODOS OS DOCUMENTOS'
-      : title.toLocaleUpperCase();
   const grid = $('#books');
   grid.className = prefs.view === 'list' ? 'book-list' : 'book-grid';
   grid.innerHTML = books
@@ -277,7 +272,7 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
     .join('');
   $('#empty').innerHTML = books.length
     ? ''
-    : `<div class="empty-state"><div class="empty-illustration">${icon(query ? 'search' : 'book')}</div><span class="eyebrow">${query ? 'TENTE OUTRO TERMO' : 'SUA PRÓXIMA LEITURA COMEÇA AQUI'}</span><h2>${query ? 'Nenhum documento encontrado' : filter === 'all' ? 'Um lugar para suas leituras' : filter === 'trash' ? 'Nenhum documento removido' : 'Nenhum documento por aqui'}</h2><p>${query ? 'Busque pelo título, autor, nome do arquivo, etiquetas ou notas.' : filter === 'all' ? 'Adicione um PDF ou uma coleção inteira.<br>O Fólio cuida da biblioteca. Você aproveita a leitura.' : filter === 'favorites' ? 'Marque a estrela de um documento para encontrá-lo aqui.' : filter === 'reading' ? 'Abra um documento para acompanhar sua leitura aqui.' : filter === 'finished' ? 'Use “Marcar como concluído” nas opções de um documento.' : tag !== null ? 'Adicione esta etiqueta a um documento pelo menu dele.' : 'Documentos removidos da biblioteca aparecem aqui.'}</p>${query ? `<button id="clear-search" class="secondary">${icon('close')} Limpar busca</button>` : filter === 'all' ? `<button id="import-empty" class="primary">${icon('plus')} Escolher PDFs</button><button id="import-folder-empty" class="text-button">${icon('folder')} Adicionar uma pasta</button><small>Ou arraste PDFs e pastas para esta janela</small>` : ''}</div>`;
+    : `<div class="empty-state"><div class="empty-illustration">${icon(query ? 'search' : 'book')}</div><h2>${query ? 'Nenhum documento encontrado' : filter === 'all' ? 'Nenhum documento ainda' : filter === 'trash' ? 'Nenhum documento removido' : 'Nenhum documento por aqui'}</h2><p>${query ? 'Busque pelo título, autor, nome do arquivo, etiquetas ou notas.' : filter === 'all' ? 'Adicione PDFs ou uma pasta, ou arraste para esta janela.' : filter === 'favorites' ? 'Marque a estrela de um documento para encontrá-lo aqui.' : filter === 'reading' ? 'Abra um documento para acompanhar sua leitura aqui.' : filter === 'finished' ? 'Use “Marcar como concluído” nas opções de um documento.' : tag !== null ? 'Adicione esta etiqueta a um documento pelo menu dele.' : 'Documentos removidos da biblioteca aparecem aqui.'}</p>${query ? `<button id="clear-search" class="secondary">${icon('close')} Limpar busca</button>` : filter === 'all' ? `<button id="import-empty" class="primary">${icon('plus')} Escolher PDFs</button><button id="import-folder-empty" class="text-button">${icon('folder')} Adicionar uma pasta</button>` : ''}</div>`;
   $('#import-empty')?.addEventListener('click', () => importFiles());
   $('#import-folder-empty')?.addEventListener('click', () => importFolder());
   $('#clear-search')?.addEventListener('click', () => clearSearch());
@@ -420,9 +415,15 @@ export function updateBookCard(state: LibraryViewState, book: Book, before: Book
     card.querySelector('[data-favorite]')?.setAttribute('aria-label', favoriteLabel(book));
     card.querySelector('[data-menu]')?.setAttribute('aria-label', `Opções de ${book.title}`);
   }
+  // The strip shows the cover and the title of the book that it offers.
   const continuation = $('#continue');
-  if (!continuation.hidden && continuation.dataset.book === book.id)
-    continuation.querySelector('h2')!.textContent = book.title;
+  if (!continuation.hidden && continuation.dataset.book === book.id) {
+    continuation.querySelector('.book-cover')?.replaceWith(htmlOf(cover(book, snapshot.folder)));
+    const title = continuation.querySelector('h2')!;
+    title.textContent = book.title;
+    title.title = book.title;
+    $('#continue-read').setAttribute('aria-label', `Continuar leitura de ${book.title}`);
+  }
   return true;
 }
 function htmlOf(html: string): Element {

@@ -29,6 +29,14 @@ const test = async (name, fn) => {
 const click = async (s) => {
   await page.locator(s).click();
 };
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 let book, longBook;
 try {
   await page.waitForSelector('#library-title');
@@ -43,6 +51,17 @@ try {
       await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
       false,
     );
+    // The title is the name of the filter, with no subtitle, and nothing decorative around the list.
+    assert.equal(await page.locator('#library-title').textContent(), 'Todos os documentos');
+    assert.equal(await page.locator('#library-subtitle').isVisible(), false);
+    await page.waitForSelector('.empty-state h2');
+    assert.equal(await page.locator('.empty-state h2').textContent(), 'Nenhum documento ainda');
+    assert.equal(
+      await page.locator('.empty-state p').textContent(),
+      'Adicione PDFs ou uma pasta, ou arraste para esta janela.',
+    );
+    assert.equal(await page.locator('.eyebrow, .library-footer, .local-note').count(), 0);
+    assert.equal((await page.locator('.brand').textContent()).trim(), 'Fólio');
   });
   await test('Importar varios PDFs com copia independente, erro parcial e deduplicacao', async () => {
     const original = path.join(root, 'tests/runtime/Origem temporaria.pdf');
@@ -107,7 +126,7 @@ try {
     await page.locator('#page-number').blur();
     await page.waitForFunction(() => document.querySelector('#page-number').value === '7');
     await page.locator('#zoom').selectOption('1.25');
-    await click('#rotate');
+    await menu('rotate');
     await click('#bookmark');
     await click('#add-note');
     await page.locator('#note-text').fill('Uma ideia importante na pagina sete.');
@@ -136,9 +155,29 @@ try {
     await click('[data-tab="notes"]');
     assert.match(await page.locator('#sidebar-content').textContent(), /Uma ideia importante/);
     await click('#sidebar-toggle');
+    // The header says nothing of saving while it goes well, and the footer has no label of its own.
+    assert.equal(await page.locator('#save-status').isHidden(), true);
+    assert.equal(await page.locator('#reading-label').count(), 0);
+  });
+  await test('Um aviso que chega com um diálogo aberto fica no topo dele, longe das ações', async () => {
+    await click('#add-note');
+    await page.waitForSelector('#note-text');
+    // The information that was on screen when the dialog opened is gone from over it.
+    assert.equal(await page.locator('#dialog .toast').count(), 0);
+    await click('#save-note');
+    const notice = page.locator('#dialog #toast .toast');
+    await notice.waitFor();
+    const [message, actions] = await Promise.all([
+      notice.boundingBox(),
+      page.locator('#note-actions').boundingBox(),
+    ]);
+    assert.ok(message.y + message.height <= actions.y, 'The message stays above the buttons');
+    await click('#close-note');
+    await page.waitForFunction(() => !document.querySelector('#dialog').open);
   });
   await test('Papel escuro, sepia, tela quente e preferencias persistentes', async () => {
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await click('[data-paper="dark"]');
     await page.locator('#warm-range').fill('35');
     await page.locator('#warm-range').dispatchEvent('input');
@@ -150,7 +189,8 @@ try {
       '0.35',
     );
     await page.screenshot({ path: 'test-results/03-reader-night.png' });
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await click('[data-paper="sepia"]');
     await click('#close-settings');
     assert.equal(await page.evaluate(() => document.documentElement.dataset.paper), 'sepia');
@@ -164,6 +204,7 @@ try {
   });
   await test('Filtros de favoritos e busca de titulo', async () => {
     await click('[data-filter="favorites"]');
+    assert.equal(await page.locator('#library-title').textContent(), 'Favoritos');
     assert.equal(await page.locator('.book-card').count(), 1);
     await page.locator('#library-search').fill('nao existe aqui');
     assert.equal(await page.locator('.book-card').count(), 0);
@@ -173,6 +214,20 @@ try {
     assert.equal(await page.locator('#books').getAttribute('class'), 'book-list');
     await click('#view-grid');
   });
+  await test('A faixa Continuar é uma linha compacta e abre o documento ao clicar em qualquer parte', async () => {
+    const strip = page.locator('#continue');
+    await strip.waitFor();
+    const box = await strip.boundingBox();
+    assert.ok(box.height >= 64 && box.height <= 96, `The strip is one line: ${box.height} px`);
+    assert.match(
+      await page.locator('#continue .continue-meta').textContent(),
+      /^Página 7 de 12 · \d+%/,
+    );
+    await page.locator('#continue .continue-info').click();
+    await page.waitForFunction(() => document.querySelector('#reader-loading').hidden);
+    assert.equal(await page.locator('#page-number').inputValue(), '7');
+    await click('#back');
+  });
   await test('Remover e restaurar preserva o arquivo e as notas', async () => {
     const stored = await api('pdf_path', { id: book.id });
     await api('remove_book', { id: book.id });
@@ -180,6 +235,11 @@ try {
     await page.reload();
     await page.waitForSelector('#library-title');
     await click('[data-filter="trash"]');
+    assert.equal(await page.locator('#library-title').textContent(), 'Removidos');
+    assert.equal(
+      await page.locator('#library-subtitle').textContent(),
+      'As cópias ficam guardadas até você excluí-las.',
+    );
     await click(`[data-restore="${book.id}"]`);
     await click('[data-filter="all"]');
     const b = (await api('library_list')).books.find((b) => b.id === book.id);
@@ -213,7 +273,9 @@ try {
     }));
     assert.ok(metrics.activeCanvases <= 12, JSON.stringify(metrics));
     assert.equal(await page.locator('#focus, #exit-focus').count(), 0);
-    assert.equal(await page.locator('#reading-brightness, #reading-warm').count(), 2);
+    // Brightness and warm screen have one button, Aparência; the old ones are gone from the toolbar.
+    assert.equal(await page.locator('#reader-appearance').count(), 1);
+    assert.equal(await page.locator('#reading-brightness, #reading-warm').count(), 0);
     await click('#back');
     return metrics;
   });
@@ -260,11 +322,27 @@ try {
       await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
       false,
     );
+    // The strip and the line of the title hold what they carry at the smallest window.
+    assert.equal(
+      await page.evaluate(() =>
+        ['#continue', '.heading-row', '.collection-toolbar'].every((s) => {
+          const el = document.querySelector(s);
+          return el.hidden || el.scrollWidth <= el.clientWidth;
+        }),
+      ),
+      true,
+    );
     await click(`[data-open="${book.id}"]`);
     await page.waitForFunction(() => document.querySelector('#reader-loading').hidden);
+    // The header, the toolbar and the footer hold what they carry at the smallest window.
     assert.equal(
-      await page.evaluate(() => document.querySelector('.reader-toolbar').scrollWidth > innerWidth),
-      false,
+      await page.evaluate(() =>
+        ['.reader-header', '.reader-toolbar', '.reader-footer'].every((selector) => {
+          const bar = document.querySelector(selector);
+          return bar.scrollWidth === bar.clientWidth;
+        }),
+      ),
+      true,
     );
     await page.screenshot({ path: 'test-results/05-reader-800.png' });
     await click('#back');

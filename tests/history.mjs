@@ -144,12 +144,17 @@ try {
     await click('#history-close');
   });
   await test('Goal edits do not rewrite earlier success and all history survives a browser restart', async () => {
+    // The general goal is changed in the dialog of the library; it stays open after "Salvar", and the
+    // history is one link away.
     await click('#goals');
-    await page.locator('#goal-mode').selectOption('custom');
+    await page.locator('#goal-mode-custom').check();
     await page.locator('#goal-unit').selectOption('pages');
     await page.locator('#goal-target').fill('100');
     await click('#goal-save');
-    await page.waitForFunction(() => !document.querySelector('#dialog').open);
+    await page.waitForFunction(() =>
+      document.querySelector('#goal-current')?.textContent.includes('de 100 páginas'),
+    );
+    await click('#goals-close');
     await click('#goals');
     await click('#goal-history');
     await day('2026-10-10');

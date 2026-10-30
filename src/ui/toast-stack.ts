@@ -64,12 +64,36 @@ export function toastToDrop(items: readonly Pick<Entry, 'kind' | 'hasAction'>[])
 // make it the containing block. Called when a dialog opens or closes, and before a message is added,
 // because the "close" event of a dialog comes a moment after `close()`, and a message that arrives in
 // that moment must not be added to a container that is hidden.
+//
+// Inside a dialog the messages go to the top edge of the dialog, and not to the bottom of the window,
+// where they would cover its buttons. The dialog is centred, so its top moves with its height and
+// with the window: where it is gets measured again when either changes.
+let dialogWatch: ResizeObserver | undefined;
+function alignToasts() {
+  const host = $('#toast'),
+    dialog = $<HTMLDialogElement>('#dialog');
+  if (host.parentElement !== dialog) return;
+  host.style.setProperty(
+    '--toast-top',
+    `${Math.max(8, Math.round(dialog.getBoundingClientRect().top) + 10)}px`,
+  );
+}
 export function placeToasts() {
   const host = $('#toast'),
     dialog = $<HTMLDialogElement>('#dialog');
   if (dialog.open) {
     if (host.parentElement !== dialog) dialog.append(host);
-  } else if (host.parentElement === dialog) dialog.before(host);
+    if (!dialogWatch) {
+      dialogWatch = new ResizeObserver(alignToasts);
+      addEventListener('resize', alignToasts);
+    }
+    alignToasts();
+    dialogWatch.observe(dialog);
+  } else {
+    if (host.parentElement === dialog) dialog.before(host);
+    dialogWatch?.disconnect();
+    host.style.removeProperty('--toast-top');
+  }
 }
 
 // Each message has its own clock. It stops while the pointer or the focus is on the message.

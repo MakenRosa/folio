@@ -19,6 +19,14 @@ page.on('request', (r) => {
 });
 await mkdir('test-results/kindle', { recursive: true });
 const click = (s) => page.locator(s).click();
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 const settle = () => page.waitForTimeout(180);
 const metrics = () =>
   page.locator('#viewer-container').evaluate((c) => ({
@@ -106,6 +114,7 @@ try {
     await page.reload();
     await page.waitForSelector('#settings');
     await click('#settings');
+    await section('leitura');
     assert.equal(await page.locator('#pref-reading-mode').inputValue(), 'scroll');
     await click('#close-settings');
   });
@@ -130,7 +139,7 @@ try {
     return { page: after.page, anchorDelta: Math.abs(after.top - before.top), gap };
   });
   await test('Forward/back moves a viewport with overlap, spans PDF pages, and never skips vertical content', async () => {
-    await click('#restart');
+    await menu('restart');
     await settle();
     assert.equal((await metrics()).top, 0);
     const steps = [];
@@ -225,10 +234,11 @@ try {
     await page.setViewportSize({ width: 800, height: 600 });
     await settle();
     assert.equal(
-      await page.evaluate(
-        () =>
-          document.querySelector('.reader-toolbar').scrollWidth > innerWidth ||
-          document.querySelector('.reader-header').scrollWidth > innerWidth,
+      await page.evaluate(() =>
+        ['.reader-header', '.reader-toolbar', '.reader-footer'].some((selector) => {
+          const bar = document.querySelector(selector);
+          return bar.scrollWidth > bar.clientWidth;
+        }),
       ),
       false,
     );
@@ -237,7 +247,8 @@ try {
     b = await metrics();
     assert.ok(b.top - a.top > 0 && b.top - a.top < a.height);
     await page.screenshot({ path: 'test-results/kindle/reader-800.png' });
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     await page.locator('#pref-reading-mode').scrollIntoViewIfNeeded();
     assert.equal(
       await page.locator('#dialog').evaluate((e) => e.scrollWidth > e.clientWidth),
@@ -282,7 +293,8 @@ try {
     const a = await metrics();
     await key('PageDown');
     assert.ok((await metrics()).top > a.top);
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await page.locator('#brightness-range').fill('45');
     await page.locator('#brightness-range').dispatchEvent('input');
     await page.locator('#warm-range').fill('25');
@@ -342,7 +354,7 @@ try {
     const scan = await fixture('Digitalizado grande.pdf');
     await open(scan);
     await page.locator('#zoom').selectOption('1.5');
-    await click('#restart');
+    await menu('restart');
     await settle();
     const a = await metrics();
     await key('PageDown');

@@ -20,6 +20,9 @@ const paths: Record<string, string> = {
   moon: '<path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/>',
   warm: '<path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z"/><path d="M12 9v9"/>',
+  // The circle with one half filled, the sign of the display settings: paper, brightness and warmth.
+  appearance:
+    '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor"/>',
   bookmark: '<path d="M6 3h12v18l-6-4-6 4Z"/>',
   note: '<path d="M14 3H4v18h16V9m-6-6v6h6M8 13h8M8 17h5"/>',
   rotate: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',

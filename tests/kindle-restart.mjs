@@ -20,19 +20,20 @@ if (process.argv[2] === 'prepare') {
   const book = snapshot.books.find((b) => b.title === 'Caderno de leitura');
   assert.ok(book);
   await open(book.id);
+  // From the footer of the reader the dialog has the part of this document: a goal of its own, saved
+  // with its own "Salvar" (the dialog stays open), and then the day's reading is adjusted.
   await page.locator('#reader-goal').click();
-  await page.locator('#goal-mode').selectOption('custom');
-  await page.locator('#goal-unit').selectOption('pages');
-  await page.locator('#goal-target').fill('15');
-  await page.locator('#goal-save').click();
-  await page.waitForFunction(() => !document.querySelector('#dialog').open);
-  await page.locator('#reader-goal').click();
+  await page.locator('#goal-own-custom').check();
+  await page.locator('#goal-own-unit').selectOption('pages');
+  await page.locator('#goal-own-target').fill('15');
+  await page.locator('#goal-own-save').click();
+  await page.waitForFunction(() => document.querySelector('#goal-own-current'));
   await page.locator('.goal-adjust summary').click();
   await page.locator('#goal-pages').fill('4');
   await page.locator('#goal-chapters').fill('1');
-  await page.evaluate(() => (document.querySelector('#goal-current').dataset.old = '1'));
+  await page.evaluate(() => (document.querySelector('#goal-own-current').dataset.old = '1'));
   await page.locator('#goal-log-save').click();
-  await page.waitForFunction(() => !document.querySelector('#goal-current').dataset.old);
+  await page.waitForFunction(() => !document.querySelector('#goal-own-current').dataset.old);
   await page.locator('#goals-close').click();
   await page.locator('#finish-reading').click();
   await page.waitForFunction(

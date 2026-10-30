@@ -9,6 +9,14 @@ const results = [];
 let page;
 await mkdir('test-results/spread', { recursive: true });
 const click = (selector) => page.locator(selector).click();
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 const settle = (ms = 500) => page.waitForTimeout(ms);
 const prefs = () => page.evaluate(() => JSON.parse(localStorage.getItem('lume.preferences')));
 const stored = () =>
@@ -129,7 +137,8 @@ const goTo = async (number) => {
   await settle();
 };
 const choose = async (spread) => {
-  await click('#reader-settings');
+  await menu('preferences');
+  await section('leitura');
   await page.locator('#pref-spread').selectOption(spread);
   await click('#close-settings');
   await waitForRows({ none: SINGLE, odd: ODD, even: EVEN }[spread]);
@@ -192,7 +201,8 @@ try {
     await settle();
   });
   await test('The preference selector, "separate cover" and the button remember the layout', async () => {
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     assert.equal(await page.locator('#pref-spread').inputValue(), 'none');
     assert.deepEqual(await page.locator('#pref-spread option').allTextContents(), [
       'Página única',
@@ -312,7 +322,8 @@ try {
     assert.deepEqual(await rows(), SINGLE);
     assert.equal(await page.locator('#next').getAttribute('aria-label'), 'Próxima tela');
     assert.ok((await row()).covers, 'Page 3 stays under the top edge');
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     assert.equal(await page.locator('#pref-spread').isDisabled(), true);
     assert.equal(await page.locator('#pref-spread').inputValue(), 'odd');
     assert.match(await page.locator('#pref-spread-help').textContent(), /Só na rolagem/);
@@ -496,24 +507,46 @@ try {
     assert.equal(await pageValue(), before.current);
     const restarted = await metrics();
     assert.ok(Math.abs(restarted.pages['4'].top - page4.top) < 3, 'The position after a restart');
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     assert.equal(await page.locator('#pref-spread').inputValue(), 'even');
     await click('#close-settings');
     return { browserRestart: true, personalDataUsed: false };
   });
   await test('At 800 px the bars do not overflow, in the dark theme and with sepia paper', async () => {
     await page.setViewportSize({ width: 800, height: 600 });
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await page.locator('#pref-theme').selectOption('dark');
     await page.locator('[data-paper="sepia"]').click();
     await page.screenshot({ path: 'test-results/spread/preferences-800-dark-sepia.png' });
-    const dialog = await page.evaluate(() => {
-      const d = document.querySelector('#dialog');
-      const row = document.querySelector('#pref-spread-row').getBoundingClientRect();
-      return { overflow: d.scrollWidth - d.clientWidth, right: row.right, width: innerWidth };
-    });
-    assert.equal(dialog.overflow, 0);
-    assert.ok(dialog.right <= dialog.width);
+    // Up to 800 px the sections lie across the top, and each one fits the dialog and the window.
+    assert.equal(await page.locator('.prefs-tabs').getAttribute('aria-orientation'), 'horizontal');
+    for (const name of ['aparencia', 'leitura', 'teclado', 'biblioteca']) {
+      await section(name);
+      const dialog = await page.evaluate(() => {
+        const d = document.querySelector('#dialog');
+        const box = d.getBoundingClientRect();
+        const wide = (selector) => {
+          const el = document.querySelector(selector);
+          return el.scrollWidth - el.clientWidth;
+        };
+        return {
+          overflow: wide('#dialog') + wide('.prefs-panels') + wide('.prefs-tabs'),
+          inside:
+            box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight,
+          done: document.querySelector('.prefs-view > .dialog-actions').getBoundingClientRect()
+            .bottom,
+          height: box.bottom,
+        };
+      });
+      assert.equal(dialog.overflow, 0, `${name}: nothing overflows the dialog`);
+      assert.ok(dialog.inside, `${name}: the dialog is inside the window`);
+      assert.ok(dialog.done <= dialog.height, `${name}: "Pronto" stays in view`);
+    }
+    await section('leitura');
+    const row = await page.locator('#pref-spread-row').boundingBox();
+    assert.ok(row.x + row.width <= 800);
     await click('#close-settings');
     await page.locator('#zoom').selectOption('page-width');
     await settle(900);

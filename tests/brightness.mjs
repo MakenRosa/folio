@@ -17,6 +17,14 @@ const test = async (name, run) => {
   console.log('PASS', name);
 };
 const click = (selector) => page.locator(selector).click();
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 const setRange = async (selector, value) => {
   await page.locator(selector).fill(String(value));
   await page.locator(selector).dispatchEvent('input');
@@ -68,14 +76,15 @@ try {
     );
   });
   await openBook();
-  await click('#restart');
+  await menu('restart');
   await page.waitForFunction(() => document.querySelector('#page-number').value === '1');
   await page.locator('#zoom').selectOption('page-fit');
   await page.waitForTimeout(400);
   await page.locator('#viewer-wrap').screenshot({ path: 'test-results/brightness/paper-100.png' });
   await page.evaluate(() => (window.testBrightnessCanvas = document.querySelector('.page canvas')));
   await test('50% dims immediately without replacing canvas or disabling text interaction', async () => {
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await setRange('#brightness-range', 50);
     assert.equal(await page.locator('#brightness-value').textContent(), '50%');
     assert.equal(await opacity(), '0.5');
@@ -105,7 +114,8 @@ try {
     await page.locator('#viewer-wrap').screenshot({ path: 'test-results/brightness/paper-50.png' });
   });
   await test('Keyboard adjustment, minimum, reset, and combined warm/sepia/dark modes', async () => {
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('aparencia');
     await page.locator('#brightness-range').focus();
     await page.keyboard.press('ArrowLeft');
     assert.equal(await page.locator('#brightness-range').inputValue(), '45');
@@ -149,6 +159,7 @@ try {
     await page.reload();
     await page.waitForSelector('#library-title');
     await click('#settings');
+    await section('aparencia');
     assert.equal(await page.locator('#brightness-range').inputValue(), '40');
     await click('#close-settings');
     await openBook();
@@ -178,6 +189,7 @@ try {
     }
     await page.setViewportSize({ width: 800, height: 600 });
     await click('#settings');
+    await section('aparencia');
     await page.locator('#brightness-range').scrollIntoViewIfNeeded();
     await setRange('#brightness-range', 50);
     assert.equal(

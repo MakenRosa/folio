@@ -124,7 +124,7 @@ export function renderNotes(
   root.innerHTML = `<button id="side-add-note" class="secondary" type="button">${icon('plus')} Adicionar nota</button>${
     any
       ? `<div class="search-input notes-search">${icon('search')}<input id="notes-search" type="search" placeholder="Buscar nas notas" aria-label="Buscar nas notas" autocomplete="off" value="${esc(state.query)}"></div><div class="notes-summary"><span id="notes-count" role="status" aria-live="polite"></span><button id="side-export-notes" class="text-button" type="button">${icon('download')} Exportar notas…</button></div><div id="notes-list"></div>`
-      : `<div class="side-empty">${icon('note')}<h3>Suas ideias, por perto</h3><p>Selecione um trecho para realçar ou anotar. Tudo fica salvo neste computador.</p></div>`
+      : `<div class="side-empty">${icon('note')}<h3>Nenhuma nota ainda</h3><p>Selecione um trecho para realçar ou anotar.</p></div>`
   }`;
   root.querySelector<HTMLElement>('#side-add-note')!.onclick = actions.add;
   if (!any) return;

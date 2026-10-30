@@ -16,6 +16,14 @@ const fixture = path.resolve('tests/fixtures/Paginas com margens.pdf');
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const originalHash = hash(await readFile(fixture));
 const click = (selector) => page.locator(selector).click();
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 const jump = async (number) => {
   await page.locator('#page-number').fill(String(number));
   await page.locator('#page-number').press('Enter');
@@ -72,7 +80,8 @@ try {
   const fullHeight = await height(1);
   await page.screenshot({ path: 'test-results/joined-pages/before.png' });
   await test('Joining removes internal blank margins and keeps every text line', async () => {
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     await page.locator('#pref-join-pages').check();
     await click('#close-settings');
     await ready(1);
@@ -145,12 +154,14 @@ try {
     await page.keyboard.press('r');
     await page.locator('#zoom').selectOption('1');
     await ready(2);
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     await page.locator('#pref-join-pages').uncheck();
     await click('#close-settings');
     await ready(2, false);
     assert.ok(Math.abs((await height(2)) - fullHeight) < 1);
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     await page.locator('#pref-join-pages').check();
     await click('#close-settings');
     await ready(2);

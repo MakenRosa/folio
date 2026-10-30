@@ -69,9 +69,7 @@ const footer = async () => {
   return { percent: Number(match[1]), page: Number(match[2]) };
 };
 const library = async () => ({
-  continue: /(\d+)% da leitura/.exec(
-    await page.locator('#continue .continue-info > span:last-child').textContent(),
-  )?.[1],
+  continue: /· (\d+)%/.exec(await page.locator('#continue .continue-meta').textContent())?.[1],
   card: /· (\d+)%/.exec(await page.locator('.book-state > span').first().textContent())?.[1],
   bar: await page
     .locator('.progress-track i')
@@ -210,8 +208,8 @@ try {
     await goTo(3);
     await back();
     assert.match(
-      await page.locator('#continue .continue-info > span:last-child').textContent(),
-      /Página 3 de 6 · 40% da leitura · ≈ 8 min para terminar/,
+      await page.locator('#continue .continue-meta').textContent(),
+      /Página 3 de 6 · 40% · ≈ 8 min para terminar/,
     );
     await page.screenshot({ path: 'test-results/progress/library-light.png' });
     await openBook();

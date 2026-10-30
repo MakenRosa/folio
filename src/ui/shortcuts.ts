@@ -33,6 +33,10 @@ type ShortcutActions = {
   singleKeys: () => boolean;
   // F1, or "?": the guide, from the library as from the reader.
   showHelp: () => void;
+  // D goes on to the next paper; R turns the pages a quarter, with a way back. Neither has a button
+  // of its own in the bars: the paper is in Aparência, and the turn is in the menu of the document.
+  cyclePaper: () => void;
+  rotate: () => void;
   // Esc in the search of the library: clears the field and what it filtered. Says whether there
   // was any text to clear.
   clearSearch: () => boolean;
@@ -197,8 +201,8 @@ export function bindShortcuts(actions: ShortcutActions) {
             else $('#spread-toggle').click();
           }
           if (key === 's' && !e.repeat) $('#sidebar-toggle').click();
-          if (key === 'd' && !e.repeat) $('#paper-toggle').click();
-          if (key === 'r' && !e.repeat) $('#rotate').click();
+          if (key === 'd' && !e.repeat) actions.cyclePaper();
+          if (key === 'r' && !e.repeat) actions.rotate();
           // H and N act on the passage that is selected: highlight it, or write a note on it. With
           // none selected they say how to select one.
           if (key === 'h' && !e.repeat && !actions.highlightSelection()) toast(SELECT_PASSAGE_NOTE);

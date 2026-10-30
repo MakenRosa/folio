@@ -60,9 +60,20 @@ Canvases são renderizados sob demanda, com teto de 8 megapixels por canvas.
 global de pixels quando o zoom ou o tamanho da janela muda. Há debounce de gravação
 durante a leitura e salvamento final no fechamento normal.
 
-**Controles de leitura.** `src/ui/reading-comfort.ts` compartilha as preferências
-de brilho e tela quente com o diálogo de aparência. Tema, papel, modo Kindle,
+**Controles de leitura.** O cabeçalho do leitor tem Voltar, o título, Concluir leitura, o
+favorito e o menu ⋯; a barra de ferramentas tem a barra lateral, a busca e a página à esquerda e,
+à direita, o zoom, o Kindle e as duas páginas, a marca, Aparência e a tela cheia. Girar página
+e Ler do início não têm botão: estão no menu ⋯ (`bookMenu`, na ordem do leitor), e a tecla R
+continua girando a página (as teclas D e R chamam `cyclePaper` e `rotate`, de `bindShortcuts`).
+`src/ui/reading-comfort.ts` é o botão Aparência (`#reader-appearance`) e o painel que ele abre
+(`role="dialog"`: os três papéis, brilho com "Restaurar", tela quente com "Desativar" e "Mais
+preferências…", que abre as Preferências na seção Aparência); ele compartilha as preferências de
+brilho e tela quente com o diálogo de Preferências, e um ponto no ícone avisa que o brilho está
+abaixo de 100% ou a tela quente acima de 0%. Tema, papel, modo Kindle,
 conforto e opções da biblioteca continuam na chave existente `lume.preferences`.
+O diálogo de Preferências (`src/ui/preferences-dialog.ts`) tem quatro seções em abas
+(Aparência, Leitura, Teclado e Biblioteca); `showPreferences(prefs, ações, seção)` abre
+direto numa delas e, sem a seção, volta à última usada na sessão.
 `src/ui/reader-chrome.ts` acompanha a tela cheia nativa e revela cada barra pela
 borda correspondente ou pelo foco do teclado. Os menus sobrepõem a área do leitor,
 sem redimensionar o PDF quando aparecem. Busca e ajustes abertos mantêm os controles
@@ -122,7 +133,10 @@ que seja a configuração de cada um, inclusive os de Removidos e os registros `
 documento tem duas opções: sem meta própria (`inherit`, e também `none`, que catálogos
 antigos guardam e `ownGoal` lê do mesmo jeito) ou meta própria (`custom`). `goalProgress`
 diz o progresso de um escopo: a meta do documento, quando ele tem uma, ou a geral. O
-rodapé do leitor usa essa regra, e a biblioteca mostra sempre a meta geral. A meta geral fica
+rodapé do leitor usa essa regra, e a biblioteca mostra sempre a meta geral. O diálogo
+(`src/ui/goals-dialog.ts`) segue a mesma regra em duas partes: a meta geral e, só quando é
+aberto a partir de um documento, a meta própria dele; não há lista de documentos para
+escolher. A meta geral fica
 nas preferências existentes; a meta própria de cada documento e os registros diários ficam
 no catálogo. O Rust continua aceitando os três valores de `mode` em `readingGoal` e em
 `goalHistory`, e a interface grava `inherit` para "sem meta própria". Campos novos recebem valores padrão ao abrir
@@ -160,7 +174,7 @@ acompanhada sem meta, usando o relógio monotônico para medir tempo ativo.
 **Progresso e tempo restante.** `src/reading/progress.ts` é a única definição do
 percentual: da primeira página (0%) à última (100%), com `finished` em 100%. Usa só
 `page`, `pages` e `finished`, que o catálogo já guarda, por isso o rodapé (rolagem e
-Kindle), o cartão Continuar leitura e as barras da biblioteca coincidem. O percentual
+Kindle), a faixa Continuar e as barras da biblioteca coincidem. O percentual
 de rolagem do contêiner foi abandonado porque muda com a janela, o zoom e a junção de
 páginas. Ao chegar ao fim do documento, o leitor mostra 100% mesmo quando a última tela
 começa na penúltima página; a biblioteca não tem esse dado, e a diferença só existe
@@ -267,7 +281,7 @@ para a rolagem, as duas páginas e o Kindle. A tecla S e os atalhos da barra nã
 digitar, e as setas da alça, das abas, do sumário e das miniaturas não viram páginas.
 
 **Menus e painéis flutuantes.** `#popover` (`popover()` em `src/ui/overlays.ts`) serve ao
-menu de opções do documento e aos ajustes rápidos de Brilho e Tela quente. A posição vem de
+menu de opções do documento e ao painel Aparência. A posição vem de
 `placePopover` (`src/ui/popover-position.ts`), uma função sem DOM: abre abaixo do âncora quando
 cabe, acima quando não cabe, e fica sempre a 8 px das bordas da janela. Se nenhum lado comporta
 o painel, ele usa o lado maior com `max-height` e rolagem interna, e só sem espaço útil em
@@ -281,11 +295,14 @@ e o botão de origem ganha `aria-haspopup="menu"` e `aria-expanded`. O foco vai 
 pula itens desabilitados. Tab fecha o menu e devolve o foco ao dono antes de seguir, e Esc, tratado
 em `shortcuts.ts`, fecha o menu antes da busca e da tela cheia. As teclas de leitura (setas, K, L,
 S, R) não agem com o foco num menu. O dono do foco fica em `dataset.owner` (id); o menu do
-cartão pode ter como dono o controle que estava em foco, diferente do botão que o ancora. Os
-ajustes de Brilho e Tela quente continuam sendo `role="dialog"`, com o foco no controle.
+cartão pode ter como dono o controle que estava em foco, diferente do botão que o ancora. O
+painel Aparência é `role="dialog"`, com o foco no papel em uso; Tab sai dele nas pontas e as setas
+nos botões de papel andam entre os três.
 
 O menu do cartão (`bookMenu` em `main.ts`) é o mesmo para o botão "⋯", o botão direito (no
-ponteiro), Shift + F10 e a tecla Menu (junto ao cartão) e o botão do leitor. Nos Removidos
+ponteiro), Shift + F10 e a tecla Menu (junto ao cartão) e o botão do leitor; no leitor os itens vêm
+em outra ordem (Ler do início, Girar página, Meta, Renomear, Etiquetas, exportações, Preferências,
+Guia e Remover) e "Marcar como concluído" sai, porque o cabeçalho tem Concluir leitura. Nos Removidos
 oferece Restaurar e Excluir definitivamente. O menu do sistema do WebView é suprimido sobre os
 cartões e o painel.
 
@@ -339,7 +356,11 @@ até três avisos em `#toast`, a região `aria-live="polite"` que fica sempre no
 tem o próprio relógio, pausado pelo ponteiro ou pelo foco; a ação vem antes do botão
 `.toast-close`. `fail()` usa `describeError` (`src/ui/error-text.ts`, sem DOM): o texto técnico
 do Rust, do Windows (`os error N`) ou do PDF.js vira uma frase em português, e o original fica
-em "Detalhes". Erros usam `role="alert"` e não somem sozinhos. O andamento da importação vai
+em "Detalhes". Erros usam `role="alert"` e não somem sozinhos. Ao abrir um diálogo (`modal()`, fora de um
+redesenho do mesmo diálogo), `dismissNotices()` dispensa os avisos informativos que estavam na tela,
+para que não cubram os botões dele; os erros ficam. O aviso que chega com o diálogo aberto aparece no
+topo dele (`#toast` vira filho do diálogo, e `--toast-top` o põe logo abaixo da borda superior,
+medida de novo quando o diálogo ou a janela mudam de tamanho). O andamento da importação vai
 para o botão `#import-main` (`src/ui/import-progress.ts`), sem um aviso por arquivo. As dicas
 mostradas (`hints` nas preferências, nomes em `src/hints.ts`) não voltam.
 

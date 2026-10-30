@@ -68,7 +68,7 @@ export function showHistory(
       new Date(date(month + '-01').getFullYear(), date(month + '-01').getMonth() + 1, 1, 12),
     ).slice(0, 7);
     modal(
-      `<div class="history-view"><div class="dialog-heading"><div><span class="eyebrow">SEU RITMO DE LEITURA</span><h2>Histórico de leitura</h2></div><div class="heading-tools">${back ? `<button id="history-back" class="text-button" type="button">${icon('back')} Voltar às metas</button>` : ''}${ib('history-close', 'Fechar histórico', 'close', 'data-close')}</div></div>
+      `<div class="history-view"><div class="dialog-heading"><h2>Histórico de leitura</h2><div class="heading-tools">${back ? `<button id="history-back" class="text-button" type="button">${icon('back')} Voltar às metas</button>` : ''}${ib('history-close', 'Fechar histórico', 'close', 'data-close')}</div></div>
       <div class="history-controls"><div><label class="field-label" for="history-scope">Acompanhar</label><select id="history-scope" class="text-field"><option value="global">Biblioteca inteira</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(optionLabel(b))}</option>`).join('')}</select></div>
       <div class="history-month">${ib('history-prev', 'Mês anterior', 'left', previous < first.slice(0, 7) ? 'disabled' : '')}<label class="sr-only" for="history-month">Mês do histórico</label><input id="history-month" class="text-field" type="month" value="${month}" min="${first.slice(0, 7)}" max="${today.slice(0, 7)}" aria-describedby="history-hint">${ib('history-next', 'Próximo mês', 'right', next > today.slice(0, 7) ? 'disabled' : '')}</div></div>
       <p id="history-hint" class="field-hint" role="status"></p>

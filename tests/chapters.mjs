@@ -14,6 +14,14 @@ const fixture = path.resolve('tests/fixtures/Capitulos.pdf');
 const hash = (data) => createHash('sha256').update(data).digest('hex');
 const sourceHash = hash(await readFile(fixture));
 const click = (id) => page.locator(id).click();
+// The preferences open on the section that was used last: each test picks the one it needs.
+const section = (name) => click(`#prefs-tab-${name}`);
+// What the reader has no button for is in the menu of the document (⋯): the preferences, "Ler do
+// início" and "Girar página".
+const menu = async (action) => {
+  await click('#reader-more');
+  await click(`#popover [data-action="${action}"]`);
+};
 const settle = () => page.waitForTimeout(350);
 const jump = async (number) => {
   await page.locator('#page-number').fill(String(number));
@@ -158,11 +166,13 @@ try {
     await click('#previous');
     await settle();
     assert.notEqual((await state()).clip, '');
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     await page.locator('#pref-chapter-breaks').uncheck();
     await click('#close-settings');
     assert.equal((await state()).clip, '');
-    await click('#reader-settings');
+    await menu('preferences');
+    await section('leitura');
     await page.locator('#pref-chapter-breaks').check();
     await click('#close-settings');
     await click('#find-toggle');

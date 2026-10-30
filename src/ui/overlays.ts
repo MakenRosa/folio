@@ -1,7 +1,7 @@
 import { $ } from './dom';
 import { isTypedCharacter, menuIndexAfterKey, typeaheadIndex } from './menu-navigation';
 import { placePopover, pointBox } from './popover-position';
-import { toast, placeToasts } from './toast-stack';
+import { toast, placeToasts, dismissNotices } from './toast-stack';
 import { GENERIC_ERROR, describeError } from './error-text';
 export {
   toast,
@@ -47,11 +47,14 @@ function focusStart(d: HTMLElement) {
 // it is the dialog that is on screen, drawn again because a choice in it changed what it shows: the
 // scroll stays, the focus stays on the control that had it (found by its `id`), and so do the panels
 // (`<details>`) that were open. The dialog is named by its first title (an `h2`), so that a screen
-// reader says which dialog it is; one without a title has no name. While it is open, the messages
-// of the page (`toast`) are shown inside it, where they can be seen and pressed.
+// reader says which dialog it is; one without a title has no name. The messages of the page (`toast`)
+// that are information leave when a dialog opens, so that they do not cover its buttons; the errors
+// stay. While it is open, the messages that arrive are shown inside it, at its top, where they can
+// be seen and pressed.
 let watchingDialog = false;
 export function modal(content: string, again = false) {
   closePopover();
+  if (!again) dismissNotices();
   const d = $<HTMLDialogElement>('#dialog'),
     body = $('#dialog-content');
   const active = again && body.contains(document.activeElement) ? document.activeElement : null;
