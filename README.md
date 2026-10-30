@@ -15,6 +15,10 @@ tela atravessa a divisão entre duas páginas do PDF.
 [Demonstração](docs/demo.md) · [Arquitetura](docs/architecture.md) ·
 [Resultados dos testes](VALIDATION.md) · [Como contribuir](CONTRIBUTING.md)
 
+## English summary
+
+A Windows PDF reader built with Tauri, Rust, TypeScript, and PDF.js. It keeps local document copies, detects duplicate content with SHA-256, and restores reading progress. Native tests use artificial PDFs and an isolated library. Local validation results and the GitHub Actions status are documented separately; no signed public installer is available.
+
 ## O que está implementado
 
 - Importação de um ou vários PDFs, por diálogo ou arrastar e soltar. Cada arquivo
@@ -84,6 +88,8 @@ fixture de teste. Evidências locais ficam em `test-results/` e não entram no Z
 O [workflow de Windows](https://github.com/MakenRosa/folio/actions/workflows/ci.yml)
 é executado em pushes para `main` e pull requests. Os resultados documentados
 em `VALIDATION.md` são da execução local; o histórico remoto está no GitHub Actions.
+
+Na [execução de 22/10/2026](https://github.com/MakenRosa/folio/actions/runs/39819295015), o build e `npm run check` passaram. A etapa `npm run test:native` terminou por tempo limite ao aguardar o WebView2 isolado, antes de iniciar os cenários de interface. A causa ainda precisa de diagnóstico no runner; essa execução não comprova aprovação da suíte nativa em CI.
 
 ## Dados e decisões técnicas
 
