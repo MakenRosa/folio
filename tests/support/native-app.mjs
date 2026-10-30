@@ -26,9 +26,12 @@ export async function connectTestApp() {
       });
     const snapshot = await api('library_list');
     assert.equal(path.resolve(snapshot.folder).toLowerCase(), library.toLowerCase());
-    // The window fits itself to the screen, which is smaller on a CI runner than on a desktop.
-    // Every suite starts from the same layout; the ones that test other sizes set their own.
-    await page.setViewportSize({ width: 1280, height: 820 });
+    // The window fits itself to the screen. On a small one (a CI runner's) it opens narrower than
+    // the reader's full toolbar (1100 px), so the suites start at the size they were written for.
+    // A wide window keeps its real size: emulating a viewport also replaces the pixel ratio, and
+    // Kindle screen turns align to it, so a high-DPI desktop would drift by a pixel per turn.
+    if ((await page.evaluate(() => innerWidth)) <= 1100)
+      await page.setViewportSize({ width: 1280, height: 820 });
     return { browser, page, api };
   } catch (error) {
     await browser.close();
