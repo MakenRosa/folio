@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -14,20 +14,30 @@ await writeFile(
   path.join(runRoot, 'owner.json'),
   JSON.stringify({ purpose: 'folio-artificial-pdf-tests' }),
 );
-const config = path.join(runRoot, 'tauri.test.conf.json');
-await writeFile(
-  config,
-  JSON.stringify({
-    identifier: `com.folio.pdf.test.t${Date.now()}`,
-    app: { appDirectoriesOverride: path.join(runRoot, 'data') },
-  }),
-);
 const server = createServer();
 await new Promise((resolve, reject) =>
   server.once('error', reject).listen(0, '127.0.0.1', resolve),
 );
 const port = server.address().port;
 await new Promise((resolve) => server.close(resolve));
+// The DevTools port goes into the test build's own window options. Some WebView2 installations
+// (the GitHub Windows runner, for one) ignore WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, and setting
+// the options replaces Tauri's default arguments, so those are kept here too.
+const { app: appConfig } = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'));
+const config = path.join(runRoot, 'tauri.test.conf.json');
+await writeFile(
+  config,
+  JSON.stringify({
+    identifier: `com.folio.pdf.test.t${Date.now()}`,
+    app: {
+      appDirectoriesOverride: path.join(runRoot, 'data'),
+      windows: appConfig.windows.map((window) => ({
+        ...window,
+        additionalBrowserArgs: `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=${port}`,
+      })),
+    },
+  }),
+);
 const env = {
   ...process.env,
   FOLIO_CDP_URL: `http://127.0.0.1:${port}`,
