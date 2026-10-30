@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import path from 'node:path';
@@ -69,7 +69,42 @@ async function launch() {
     }
     await delay(250);
   }
-  throw new Error(`Timed out starting the isolated WebView2 (last: ${last}).\n${stderr}`);
+  throw new Error(
+    `Timed out starting the isolated WebView2 (last: ${last}).\n${stderr}\n${launchReport()}`,
+  );
+}
+// What the machine shows when WebView2 never answers: its processes, the app's windows, the
+// files WebView2 left in the isolated profile, and a picture of the screen for the CI evidence.
+function launchReport() {
+  const shell = (script) => {
+    try {
+      return execFileSync('powershell', ['-NoProfile', '-Command', script], {
+        encoding: 'utf8',
+        timeout: 30000,
+      }).trim();
+    } catch (error) {
+      return `(${String(error).split('\n')[0]})`;
+    }
+  };
+  const shot = path.join(root, 'test-results', 'native-launch-timeout.png').replaceAll("'", "''");
+  return [
+    'WebView2 processes:',
+    shell(
+      'Get-CimInstance Win32_Process -Filter "Name=\'msedgewebview2.exe\'" | Select-Object -First 3 -ExpandProperty CommandLine',
+    ),
+    'App windows:',
+    shell(
+      `Get-Process -Id ${app.pid} | Format-List Responding,MainWindowTitle,MainWindowHandle,SessionId | Out-String`,
+    ),
+    'Profile files:',
+    shell(
+      `Get-ChildItem -Recurse -Depth 2 '${runRoot.replaceAll("'", "''")}\\data' | Select-Object -First 25 -ExpandProperty FullName`,
+    ),
+    'Screen:',
+    shell(
+      `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $p = New-Object System.Drawing.Bitmap $b.Width, $b.Height; [System.Drawing.Graphics]::FromImage($p).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size); $p.Save('${shot}'); "saved $($b.Width)x$($b.Height)"`,
+    ),
+  ].join('\n');
 }
 async function waitClosed() {
   for (let i = 0; i < 80 && app.exitCode === null; i++) await delay(100);
