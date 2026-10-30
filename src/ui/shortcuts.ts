@@ -23,6 +23,9 @@ type ShortcutActions = {
   annotateSelection: () => boolean;
   // Esc: puts away the bar of the selection and the selection itself. Says whether there was any.
   dismissSelection: () => boolean;
+  // Whether the keys of one letter (K, L, S, D, R, H, N) act. The reader can turn them off in the
+  // preferences (WCAG 2.1.4); the ones with Ctrl or Alt, the arrows and the like do not depend on it.
+  singleKeys: () => boolean;
 };
 export function bindShortcuts(actions: ShortcutActions) {
   const { importFiles, closeReader, toggleBookmark, exitFullscreen, showFind } = actions;
@@ -140,17 +143,20 @@ export function bindShortcuts(actions: ShortcutActions) {
               : 1,
           );
       } else {
-        if (e.key.toLowerCase() === 'k') $('#kindle-toggle').click();
-        if (e.key.toLowerCase() === 'l') {
-          if (reader?.kindle) toast(SPREAD_KINDLE_NOTE);
-          else $('#spread-toggle').click();
+        // The keys of one letter. With the option off they do nothing, and are not taken from the page.
+        if (actions.singleKeys()) {
+          if (e.key.toLowerCase() === 'k') $('#kindle-toggle').click();
+          if (e.key.toLowerCase() === 'l') {
+            if (reader?.kindle) toast(SPREAD_KINDLE_NOTE);
+            else $('#spread-toggle').click();
+          }
+          if (e.key.toLowerCase() === 's' && !e.repeat) $('#sidebar-toggle').click();
+          if (e.key.toLowerCase() === 'd') $('#paper-toggle').click();
+          if (e.key.toLowerCase() === 'r') $('#rotate').click();
+          // H and N act on the passage that is selected: highlight it, or write a note on it.
+          if (e.key.toLowerCase() === 'h' && !e.repeat) actions.highlightSelection();
+          if (e.key.toLowerCase() === 'n' && !e.repeat) actions.annotateSelection();
         }
-        if (e.key.toLowerCase() === 's' && !e.repeat) $('#sidebar-toggle').click();
-        if (e.key.toLowerCase() === 'd') $('#paper-toggle').click();
-        if (e.key.toLowerCase() === 'r') $('#rotate').click();
-        // H and N act on the passage that is selected: highlight it, or write a note on it.
-        if (e.key.toLowerCase() === 'h' && !e.repeat) actions.highlightSelection();
-        if (e.key.toLowerCase() === 'n' && !e.repeat) actions.annotateSelection();
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
           const direction = e.key === 'ArrowLeft' ? -1 : 1;

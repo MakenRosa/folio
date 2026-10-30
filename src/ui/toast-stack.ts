@@ -12,7 +12,7 @@ export type ToastOptions = {
   detail?: string;
 };
 
-// The most messages on screen. When one more arrives, the oldest leaves.
+// The most messages on screen. When one more arrives, one of the others leaves (see `toastToDrop`).
 export const MAX_TOASTS = 3;
 const SHORT = 4500,
   LONG = 9000,
@@ -41,6 +41,34 @@ let bound = false,
   returnTo: HTMLElement | null = null;
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Which message gives way when a new one arrives and the screen is full: the oldest one that is only
+// information. A message with an action (Desfazer) leaves only when none is left without one, and
+// an error never leaves for the sake of room: it stays until it is closed. `items` is in the order
+// of the screen, oldest first. Gives the position in it, or -1 when every message is an error (the
+// new one is then shown over the limit, and the screen is never without the error that was there).
+export function toastToDrop(items: readonly Pick<Entry, 'kind' | 'hasAction'>[]) {
+  const plain = items.findIndex((t) => t.kind !== 'error' && !t.hasAction);
+  return plain >= 0 ? plain : items.findIndex((t) => t.kind !== 'error');
+}
+
+// The container of the messages goes where a message can be seen and pressed. A dialog opened with
+// `showModal()` is in the top layer, above anything the page draws whatever its z-index, and the rest
+// of the page is inert under it: a message left outside would be painted under the backdrop and its
+// buttons (Desfazer, Detalhes, Fechar) could not be reached. So while the dialog is open the
+// container lives inside it, and goes back to its place on the page when the dialog closes. It is a
+// child of the dialog and not of its content, which is drawn again by every `modal()`. It stays
+// `position: fixed`, so it keeps its place on the window; the dialog has no transform or filter to
+// make it the containing block. Called when a dialog opens or closes, and before a message is added,
+// because the "close" event of a dialog comes a moment after `close()`, and a message that arrives in
+// that moment must not be added to a container that is hidden.
+export function placeToasts() {
+  const host = $('#toast'),
+    dialog = $<HTMLDialogElement>('#dialog');
+  if (dialog.open) {
+    if (host.parentElement !== dialog) dialog.append(host);
+  } else if (host.parentElement === dialog) dialog.before(host);
+}
 
 // Each message has its own clock. It stops while the pointer or the focus is on the message.
 function settle(t: Entry) {
@@ -101,6 +129,7 @@ function bind(host: HTMLElement) {
 // The result closes it. The container is always there, empty and without size when nothing is
 // shown, so that screen readers are already listening when a message is added.
 export function toast(message: string, action?: ToastAction, options: ToastOptions = {}) {
+  placeToasts();
   const host = $('#toast');
   if (!bound) bind(host);
   const kind = options.kind ?? 'info',
@@ -122,7 +151,11 @@ export function toast(message: string, action?: ToastAction, options: ToastOptio
   }
   // The messages that are leaving go at once, so that there are never more than the limit.
   host.querySelectorAll('.leaving').forEach((el) => el.remove());
-  while (stack.length >= MAX_TOASTS) dismiss(stack[0], true);
+  while (stack.length >= MAX_TOASTS) {
+    const out = toastToDrop(stack);
+    if (out < 0) break;
+    dismiss(stack[out], true);
+  }
 
   const el = document.createElement('div');
   el.className = 'toast';

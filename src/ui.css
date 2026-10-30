@@ -2392,6 +2392,10 @@ dialog h2[tabindex='-1']:focus {
   border-top: 1px solid var(--line);
   margin: 5px 3px;
 }
+/* While a dialog is open the container is a child of it (placeToasts), because the top layer of a
+   modal dialog is above any z-index and leaves the rest of the page inert. It keeps `position: fixed`:
+   the dialog must not get a transform, a filter or `contain`, which would make it the box that this
+   one is placed in. */
 #toast {
   position: fixed;
   z-index: 100;

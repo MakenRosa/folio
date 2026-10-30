@@ -104,6 +104,9 @@ export interface Preferences {
   joinPages: boolean;
   chapterBreaks: boolean;
   resume: boolean;
+  // The keys of one letter (K, L, S, D, R, H, N) act in the reader. Off, only the shortcuts with
+  // Ctrl or Alt, the arrows and the like do (WCAG 2.1.4).
+  singleKeys: boolean;
   view: 'grid' | 'list';
   sort: string;
   // The tips already shown, by name (see hints.ts). Each is shown only once.

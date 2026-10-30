@@ -92,6 +92,27 @@ test('the page layout is single by default, validated, and survives a save and l
   const kindle = normalizePreferences({ spread: 'even', readingMode: 'kindle' });
   assert.deepEqual([kindle.readingMode, kindle.spread], ['kindle', 'even']);
 });
+test('the keys of one letter are on by default, validated, and survive a save and load', () => {
+  assert.equal(DEFAULT_PREFERENCES.singleKeys, true);
+  assert.equal(normalizePreferences({}).singleKeys, true, 'Older preferences have no option yet');
+  assert.equal(normalizePreferences({ singleKeys: false }).singleKeys, false);
+  assert.equal(normalizePreferences({ singleKeys: true }).singleKeys, true);
+  for (const value of [null, 0, 1, 'false', 'off', [], {}])
+    assert.equal(normalizePreferences({ singleKeys: value }).singleKeys, true);
+  assert.equal(loadPreferences({ getItem: () => '{"singleKeys":false}' }).singleKeys, false);
+  assert.equal(
+    loadPreferences({ getItem: () => '{"singleKeys":fals' }).singleKeys,
+    true,
+    'Broken JSON',
+  );
+  let stored;
+  savePreferences(
+    { setItem: (_, value) => (stored = value) },
+    normalizePreferences({ singleKeys: false, theme: 'dark' }),
+  );
+  const prefs = loadPreferences({ getItem: () => stored });
+  assert.deepEqual([prefs.singleKeys, prefs.theme], [false, 'dark']);
+});
 test('damaged or outdated preference values cannot leave the reader in an invalid mode', () => {
   for (const value of [null, 7, 'invalid', []])
     assert.equal(normalizePreferences(value).brightness, 100);

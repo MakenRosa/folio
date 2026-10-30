@@ -37,7 +37,13 @@ import { ReaderChrome } from './ui/reader-chrome';
 import { JumpPill } from './ui/jump-pill';
 import { SelectionBar } from './ui/selection-bar';
 import { deleteLabel, noteMenu } from './ui/note-menu';
-import { renderNotes, type NotesState } from './ui/notes-panel';
+import {
+  renderNotes,
+  notesFocusOf,
+  restoreNotesFocus,
+  type NotesFocus,
+  type NotesState,
+} from './ui/notes-panel';
 import { copyText } from './ui/clipboard';
 import { bindReadingComfort, syncReadingComfort } from './ui/reading-comfort';
 import { showGoals, goalLabel } from './ui/goals-dialog';
@@ -752,8 +758,14 @@ async function exportNotes(b: Book) {
 // Files by the dialog (or the ones dropped on the window), or one folder with `folder`. The
 // backend turns folders, dropped or chosen, into the PDFs inside them. With `launched`, the files
 // came from outside (see `openLaunched`): their first book opens, and a single file has no summary.
+// While a copy runs there is one import at a time: what is dropped waits for its turn (see
+// `queueDropped`), and Ctrl + O, which has nothing to wait with, says why it did nothing.
 async function importFiles(paths?: string[], folder = false, launched = false) {
-  if (busy) return;
+  if (busy) {
+    if (!paths) toast('Aguarde a cópia dos PDFs terminar.');
+    else if (!launched && paths.length) queueDropped(paths);
+    return;
+  }
   let result: ImportResult | undefined,
     count = 0;
   try {
@@ -793,7 +805,7 @@ async function importFiles(paths?: string[], folder = false, launched = false) {
   // Opening a book is not part of the import: the window can be closed, and another import can
   // start, while it loads.
   if (launched && result) await openImported(result);
-  // What came from outside while this import ran was waiting for it.
+  // What came from outside, or was dropped on the window, while this import ran was waiting for it.
   void openLaunched();
 }
 // The PDFs that came from outside the window: a double click or "Abrir com" in the Explorer, or a
@@ -802,7 +814,19 @@ async function importFiles(paths?: string[], folder = false, launched = false) {
 // even over a book that is already open. They wait for an import that is running, and for each
 // other: `launchQueue` is what has been asked for and not yet imported.
 const launchQueue: string[] = [];
-let launching = false;
+// The files and folders dropped on the window while a copy ran. They wait in the same way, and are
+// imported as a normal import (with its summary, and no book opened) once the copy ends, after what
+// the Explorer asked for. The notice that says how many are waiting is renewed with each drop.
+const dropQueue: string[] = [];
+let launching = false,
+  queuedNotice: (() => void) | null = null;
+function queueDropped(paths: string[]) {
+  dropQueue.push(...paths);
+  queuedNotice?.();
+  queuedNotice = toast(
+    `Na fila: ${dropQueue.length} ${dropQueue.length === 1 ? 'item' : 'itens'}.`,
+  );
+}
 async function takeLaunched() {
   launchQueue.push(...(await invoke<string[]>('take_pending_files')));
   await openLaunched();
@@ -811,7 +835,14 @@ async function openLaunched() {
   if (launching) return;
   launching = true;
   try {
-    while (launchQueue.length && !busy) await importFiles(launchQueue.splice(0), false, true);
+    while ((launchQueue.length || dropQueue.length) && !busy) {
+      if (launchQueue.length) await importFiles(launchQueue.splice(0), false, true);
+      else {
+        queuedNotice?.();
+        queuedNotice = null;
+        await importFiles(dropQueue.splice(0));
+      }
+    }
   } finally {
     launching = false;
   }
@@ -1464,6 +1495,17 @@ function syncSidebar() {
         else row.removeAttribute('aria-current');
       });
 }
+// A change of a note draws the Notas tab again, and the button that had the focus goes away with the
+// old drawing. `notesTabFocus` says where the focus is in the tab (null when it is elsewhere, or the
+// tab is not on screen), and `backToNotesTab` gives it back once the tab is drawn: to the same
+// control of the same note, to the next note when it was deleted, or to the search.
+const notesTabFocus = () =>
+  !$('#reader-sidebar').hidden && prefs.sidebarTab === 'notes'
+    ? notesFocusOf($('#sidebar-content'), document.activeElement)
+    : null;
+function backToNotesTab(saved: NotesFocus | null) {
+  if (saved && !$('#reader-sidebar').hidden) restoreNotesFocus($('#sidebar-content'), saved);
+}
 // The notes of the open book change one at a time, each on the notes as they are by then, so that
 // two highlights made in quick succession both stay. The pages and the side bar follow.
 let notesChain: Promise<unknown> = Promise.resolve();
@@ -1476,7 +1518,9 @@ function changeNotes(change: (notes: Note[]) => Note[]) {
     await patchBook(id, { notes: change([...current.notes]) });
     if (current?.id !== id) return;
     reader?.setNotes(current.notes);
+    const focus = notesTabFocus();
     renderSidebar('notes');
+    backToNotesTab(focus);
   };
   const done = notesChain.catch(() => {}).then(run);
   notesChain = done;
@@ -1587,6 +1631,10 @@ function editNote(existing?: Note, picked?: SelectionCapture | null) {
     (c) =>
       `<label class="color-choice"><input type="radio" name="note-color" value="${c}"${c === color ? ' checked' : ''}><span class="swatch" data-color="${c}" aria-hidden="true"></span>${COLOR_LABELS[c]}</label>`,
   ).join('')}</div></fieldset>`;
+  // Where the dialog was asked for, when that was in the Notas tab (the button of a card, or the one
+  // that adds a note): saving or deleting draws the tab again, and the dialog cannot give the focus
+  // back to a button that is no longer there.
+  const origin = notesTabFocus();
   const d = modal(
     `<div class="dialog-heading"><h2>${existing ? 'Editar nota' : 'Adicionar nota'} <span class="quiet-label">Página ${page}</span></h2>${ib('close-note', 'Fechar', 'close', 'data-close')}</div>${quote ? `<blockquote class="quote-preview">${esc(quote)}</blockquote>` : '<p>Registre uma ideia ou selecione um trecho no PDF para citá-lo.</p>'}${(capture?.pieces.length ?? 0) > 1 ? `<p class="quiet-label">A seleção passa por mais de uma página. A nota guarda só o trecho da página ${page}.</p>` : ''}${rects.length ? colors : ''}<label class="field-label" for="note-text">Sua nota</label><textarea id="note-text" rows="6" maxlength="20000" placeholder="O que você quer lembrar?" autofocus>${esc(existing?.text || '')}</textarea><div id="note-actions" class="dialog-actions">${existing ? `<button id="delete-note" class="text-button danger">${deleteLabel(existing)}</button>` : ''}<button class="secondary" data-close>Cancelar</button><button id="save-note" class="primary">Salvar nota</button></div><div id="note-discard" class="dialog-actions" role="group" aria-labelledby="note-discard-text" hidden><span id="note-discard-text" class="confirm-text">Descartar o que você escreveu?</span><button id="note-keep" class="secondary" type="button">Continuar editando</button><button id="note-discard-yes" class="primary danger-button" type="button">Descartar</button></div>`,
   );
@@ -1606,7 +1654,17 @@ function editNote(existing?: Note, picked?: SelectionCapture | null) {
     ask(true);
   };
   d.addEventListener('cancel', onCancel);
-  d.addEventListener('close', () => d.removeEventListener('cancel', onCancel), { once: true });
+  d.addEventListener(
+    'close',
+    () => {
+      d.removeEventListener('cancel', onCancel);
+      // The dialog gave the focus back, unless its button was gone: then nothing has it. The
+      // note that was saved or edited has its card; one that was deleted, the one next to it.
+      const lost = !document.activeElement || document.activeElement === document.body;
+      if (lost) backToNotesTab(origin);
+    },
+    { once: true },
+  );
   $('#note-keep').onclick = () => ask(false);
   $('#note-discard-yes').onclick = () => d.close();
   $('#save-note').onclick = async () => {
@@ -1828,6 +1886,7 @@ bindShortcuts({
   highlightSelection: () => highlightSelection(),
   annotateSelection,
   dismissSelection: () => selectionBar.dismiss(),
+  singleKeys: () => prefs.singleKeys,
 });
 async function init() {
   await getCurrentWindow().onResized(

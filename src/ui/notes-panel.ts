@@ -59,6 +59,49 @@ function card(note: Note) {
   return `<article class="note-card" data-note-id="${esc(note.id)}"${highlight ? ` data-color="${color}"` : ''}><div class="note-head"><button class="note-page" data-go="${esc(note.id)}" data-page="${note.page}" title="${highlight ? 'Ir ao trecho realçado' : 'Ir à página'}">${highlight ? `<span class="note-swatch" data-color="${color}" role="img" aria-label="Realce ${COLOR_LABELS[color].toLowerCase()}"></span>` : ''}Página ${note.page} ${icon('arrow')}</button><button class="icon-button note-more" data-menu data-more="${esc(note.id)}" type="button" aria-label="Opções da nota" title="Opções" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div>${note.quote ? `<blockquote>${esc(note.quote)}</blockquote>` : ''}${text ? `<p>${esc(text)}</p>` : highlight ? '<p class="note-kind">Realce</p>' : ''}<button class="text-button" data-edit-note="${esc(note.id)}" type="button">${highlight && !text ? 'Adicionar nota' : 'Editar nota'}</button></article>`;
 }
 
+// Where the focus was in the tab. Every change of a note draws the tab again, and the button that had
+// the focus goes away with the old drawing; with this the focus is found again in the new one.
+export type NotesFocus = {
+  // The control: a selector, inside the card of `note` or (without a note) in the tab itself.
+  control: string;
+  note: string | null;
+  // The notes next to it, the one after first, for when it is gone (it was deleted).
+  near: string[];
+};
+
+// The place of the focus (`el`) in the tab `root`, or null when it is not in it.
+export function notesFocusOf(root: HTMLElement, el: Element | null): NotesFocus | null {
+  if (!(el instanceof HTMLElement) || !root.contains(el)) return null;
+  const card = el.closest<HTMLElement>('.note-card');
+  if (!card) return el.id ? { control: `#${CSS.escape(el.id)}`, note: null, near: [] } : null;
+  const cards = [...root.querySelectorAll<HTMLElement>('.note-card')],
+    at = cards.indexOf(card);
+  const attribute = ['data-go', 'data-more', 'data-edit-note'].find((a) => el.hasAttribute(a));
+  return {
+    control: attribute ? `[${attribute}]` : 'button',
+    note: card.dataset.noteId ?? null,
+    near: [cards[at + 1], cards[at - 1]].flatMap((c) =>
+      c?.dataset.noteId ? [c.dataset.noteId] : [],
+    ),
+  };
+}
+
+// Gives the focus back, after the tab was drawn again: to the same control of the same note; if the
+// note is gone, to that control of the one next to it; if there is none, to the search, or to the
+// button that adds a note when the tab has no search. Says whether there was somewhere to go.
+export function restoreNotesFocus(root: HTMLElement, saved: NotesFocus): boolean {
+  const find = (selector: string) => root.querySelector<HTMLElement>(selector);
+  const target =
+    saved.note === null
+      ? find(saved.control)
+      : [saved.note, ...saved.near]
+          .map((id) => find(`.note-card[data-note-id="${CSS.escape(id)}"] ${saved.control}`))
+          .find(Boolean);
+  const to = target ?? find('#notes-search') ?? find('#side-add-note');
+  to?.focus();
+  return !!to;
+}
+
 // The Notas tab: a button for a new note, a search over the text and the quote (which only
 // changes the list, so that the field keeps the focus while it is typed in), the way to export,
 // and the notes in reading order, each with the colour of its highlight.

@@ -45,12 +45,18 @@ function tagLine(tags: string[]) {
     more = tags.length - shown.length;
   return `<p class="book-tags" title="${esc(`Etiquetas: ${tags.join(', ')}`)}">${shown.map(esc).join(' · ')}${more ? ` · +${more}` : ''}</p>`;
 }
+// The ids of the author and of the state of a card (where the reading is). The button of the card
+// is named "Ler {título}"; these two are what a screen reader says after the name (aria-describedby),
+// so that the progress, "Concluído" or "Ainda não lido" are heard and not only seen.
+const authorId = (b: Book) => `book-author-${b.id}`;
+const stateId = (b: Book) => `book-state-${b.id}`;
+const describedBy = (b: Book) => (b.author ? `${authorId(b)} ${stateId(b)}` : stateId(b));
 // Title, author (when the PDF has one), tags, size and where the reading is. It is the part of a
 // card that changes when the library queue learns something new about the book. `hit` says where
 // a search found it: a search that only the notes answered says so.
 function bookInfo(b: Book, hit: SearchHit | null = null) {
   const tags = tagsOf(b);
-  return `<div class="book-info"><h3 title="${esc(b.title)}">${esc(b.title)}</h3>${b.author ? `<p class="book-author" title="${esc(b.author)}">${esc(b.author)}</p>` : ''}${tags.length ? tagLine(tags) : ''}${hit === 'notes' ? `<p class="book-found">${icon('note')} Encontrado nas notas</p>` : ''}<p>${b.pages ? `${b.pages} página${b.pages === 1 ? '' : 's'} <span>·</span> ` : ''}${size(b.size)}</p><div class="book-state">${b.finished ? `<span class="finished-badge">${icon('check')} Concluído</span>${progressBar(b)}` : b.lastOpened ? `<span>Página ${b.page}${b.pages ? ` de ${b.pages} · ${readingProgress(b)}%` : ''}</span>${progressBar(b)}` : '<span class="new-badge">Ainda não lido</span>'}</div></div>`;
+  return `<div class="book-info"><h3 title="${esc(b.title)}">${esc(b.title)}</h3>${b.author ? `<p class="book-author" id="${esc(authorId(b))}" title="${esc(b.author)}">${esc(b.author)}</p>` : ''}${tags.length ? tagLine(tags) : ''}${hit === 'notes' ? `<p class="book-found">${icon('note')} Encontrado nas notas</p>` : ''}<p>${b.pages ? `${b.pages} página${b.pages === 1 ? '' : 's'} <span>·</span> ` : ''}${size(b.size)}</p><div class="book-state" id="${esc(stateId(b))}">${b.finished ? `<span class="finished-badge">${icon('check')} Concluído</span>${progressBar(b)}` : b.lastOpened ? `<span>Página ${b.page}${b.pages ? ` de ${b.pages} · ${readingProgress(b)}%` : ''}</span>${progressBar(b)}` : '<span class="new-badge">Ainda não lido</span>'}</div></div>`;
 }
 // The cover of a card with its text. It opens the book; in Removidos it is only a block of text
 // (a button that cannot be pressed would be announced as unavailable and dimmed), and the click goes
@@ -58,7 +64,7 @@ function bookInfo(b: Book, hit: SearchHit | null = null) {
 const cardCover = (b: Book, removed: boolean, content: string) =>
   removed
     ? `<div class="book-open">${content}</div>`
-    : `<button class="book-open" data-open="${b.id}" aria-label="Ler ${esc(b.title)}">${content}</button>`;
+    : `<button class="book-open" data-open="${b.id}" aria-label="Ler ${esc(b.title)}" aria-describedby="${esc(describedBy(b))}">${content}</button>`;
 const favoriteLabel = (b: Book) =>
   `${b.favorite ? 'Remover dos favoritos' : 'Favoritar'} ${b.title}`;
 const cardOf = (id: string) =>
@@ -337,8 +343,10 @@ export function updateBookCard(state: LibraryViewState, book: Book, before: Book
     card
       .querySelector('.book-info')
       ?.replaceWith(htmlOf(bookInfo(book, query ? searchBook(book, query) : null)));
-    // A button keeps its place; only what a screen reader says about it changes.
+    // A button keeps its place; only what a screen reader says about it changes. The author may be
+    // new, and with it the second thing that the button is described by.
     card.querySelector('[data-open]')?.setAttribute('aria-label', `Ler ${book.title}`);
+    card.querySelector('[data-open]')?.setAttribute('aria-describedby', describedBy(book));
     card.querySelector('[data-select]')?.setAttribute('aria-label', `Selecionar ${book.title}`);
     card.querySelector('[data-favorite]')?.setAttribute('aria-label', favoriteLabel(book));
     card.querySelector('[data-menu]')?.setAttribute('aria-label', `Opções de ${book.title}`);

@@ -1,7 +1,7 @@
 import { $ } from './dom';
 import { isTypedCharacter, menuIndexAfterKey, typeaheadIndex } from './menu-navigation';
 import { placePopover, pointBox } from './popover-position';
-import { toast } from './toast-stack';
+import { toast, placeToasts } from './toast-stack';
 import { GENERIC_ERROR, describeError } from './error-text';
 export { toast, dismissNotices, type ToastAction, type ToastOptions } from './toast-stack';
 // An error that the reader was already told about: whoever catches it further up has nothing
@@ -40,7 +40,10 @@ function focusStart(d: HTMLElement) {
 // Shows a dialog, from its start: at the top, with the focus where `focusStart` puts it. With `again`
 // it is the dialog that is on screen, drawn again because a choice in it changed what it shows: the
 // scroll stays, the focus stays on the control that had it (found by its `id`), and so do the panels
-// (`<details>`) that were open.
+// (`<details>`) that were open. The dialog is named by its first title (an `h2`), so that a screen
+// reader says which dialog it is; one without a title has no name. While it is open, the messages
+// of the page (`toast`) are shown inside it, where they can be seen and pressed.
+let watchingDialog = false;
 export function modal(content: string, again = false) {
   closePopover();
   const d = $<HTMLDialogElement>('#dialog'),
@@ -49,7 +52,18 @@ export function modal(content: string, again = false) {
   const keep = active instanceof HTMLElement ? active.id : '';
   const panels = again ? [...body.querySelectorAll('details')].map((panel) => panel.open) : [];
   body.innerHTML = content;
+  const title = body.querySelector('h2');
+  if (title) {
+    title.id ||= 'dialog-title';
+    d.setAttribute('aria-labelledby', title.id);
+  } else d.removeAttribute('aria-labelledby');
   if (!d.open) d.showModal();
+  placeToasts();
+  // Back to the page when it closes, by any way (a button, Esc, the code).
+  if (!watchingDialog) {
+    watchingDialog = true;
+    d.addEventListener('close', placeToasts);
+  }
   // The dialog is one element for all of them, and the browser keeps where it was scrolled to.
   if (!again) d.scrollTop = 0;
   d.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => d.close()));

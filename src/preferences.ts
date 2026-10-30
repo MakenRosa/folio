@@ -26,6 +26,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = {
   joinPages: true,
   chapterBreaks: true,
   resume: true,
+  singleKeys: true,
   view: 'grid',
   sort: 'recent',
   hints: [],
@@ -58,6 +59,8 @@ export function normalizePreferences(value: unknown): Preferences {
     joinPages: typeof saved.joinPages === 'boolean' ? saved.joinPages : true,
     chapterBreaks: typeof saved.chapterBreaks === 'boolean' ? saved.chapterBreaks : true,
     resume: typeof saved.resume === 'boolean' ? saved.resume : true,
+    // On unless it was turned off, so that nothing changes for those who never open the option.
+    singleKeys: typeof saved.singleKeys === 'boolean' ? saved.singleKeys : true,
     view: choice(saved.view, ['grid', 'list'], 'grid'),
     sort: choice(saved.sort, ['recent', 'title', 'size', 'added'], 'recent'),
     // The tips that were shown and must not come back: known names only, each once.
