@@ -4,6 +4,8 @@ import {
   localDay,
   normalizeGoal,
   effectiveGoal,
+  ownGoal,
+  goalProgress,
   dayCount,
   globalCount,
   withCredit,
@@ -12,19 +14,71 @@ import {
 } from '../../src/reading/goals.ts';
 const day = '2026-10-29';
 const record = { pages: [3, 4], chapters: [1], pageAdjustment: 0, chapterAdjustment: 0 };
-test('global totals aggregate inherited books and exclude custom/disabled goals', () => {
+test('the general goal counts all the reading of the day, whatever the setting of each document', () => {
   const goal = { unit: 'pages', target: 20 };
   const a = { readingDays: { [day]: record } };
   const b = { ...a, readingGoal: { mode: 'custom', unit: 'chapters', target: 2 } };
   const c = { ...a, readingGoal: { mode: 'none' } };
-  assert.equal(globalCount([a, a, b, c], goal, day), 4);
-  assert.deepEqual(effectiveGoal(b, goal), { unit: 'chapters', target: 2 });
-  assert.equal(effectiveGoal(c, goal), null);
+  const d = { ...a, readingGoal: { mode: 'inherit' } };
+  // Two pages each: with a goal of its own, with none, and with the older `none` all count.
+  assert.equal(globalCount([a, a, b, c, d], goal, day), 10);
+  assert.equal(globalCount([a, a, b, c, d], { unit: 'chapters', target: 3 }, day), 5);
   assert.equal(globalCount([a], goal, '2026-10-30'), 0);
+  assert.equal(globalCount([], goal, day), 0);
   assert.equal(normalizeGoal({ unit: 'pages', target: 0 }), null);
   assert.equal(normalizeGoal({ unit: 'pages', target: 1.5 }), null);
   assert.equal(normalizeGoal({ unit: 'pages', target: Infinity }), null);
   assert.equal(localDay(new Date(2026, 9, 29, 23, 59)), day);
+});
+test('a document has a goal of its own or none; inherit and none are both "none of its own"', () => {
+  const goal = { unit: 'pages', target: 20 };
+  const own = { mode: 'custom', unit: 'chapters', target: 2 };
+  assert.deepEqual(ownGoal(own), { unit: 'chapters', target: 2 });
+  for (const setting of [undefined, null, { mode: 'inherit', unit: 'pages', target: 10 }])
+    assert.equal(ownGoal(setting), null);
+  assert.equal(ownGoal({ mode: 'none', unit: 'pages', target: 10 }), null);
+  assert.equal(ownGoal({ mode: 'custom', unit: 'pages', target: 0 }), null, 'An invalid goal');
+  assert.deepEqual(effectiveGoal({ readingGoal: own }, goal), { unit: 'chapters', target: 2 });
+  for (const readingGoal of [undefined, { mode: 'inherit' }, { mode: 'none' }])
+    assert.deepEqual(effectiveGoal({ readingGoal }, goal), goal, 'The general goal');
+  assert.equal(effectiveGoal({ readingGoal: { mode: 'none' } }, null), null);
+});
+test('a document with a goal of its own still counts in the general goal (1 of 2 chapters)', () => {
+  // The document X has its own goal of 2 chapters. Today 1 chapter of X was read, and the general
+  // goal of 2 chapters was created after that: it shows 1 of 2, not 0 of 2.
+  const general = { unit: 'chapters', target: 2 };
+  const x = {
+    readingGoal: { mode: 'custom', unit: 'chapters', target: 2 },
+    readingDays: { [day]: { pages: [], chapters: [1], pageAdjustment: 0, chapterAdjustment: 0 } },
+  };
+  assert.equal(globalCount([x], general, day), 1);
+  assert.deepEqual(goalProgress(undefined, general, [x], day), {
+    goal: general,
+    own: false,
+    count: 1,
+  });
+  // In the reader, the document shows its own goal.
+  assert.deepEqual(goalProgress(x, general, [x], day), {
+    goal: { unit: 'chapters', target: 2 },
+    own: true,
+    count: 1,
+  });
+  // Another document, a removed one and one deleted for good add to the general goal.
+  const y = {
+    readingDays: { [day]: { pages: [], chapters: [], pageAdjustment: 0, chapterAdjustment: 1 } },
+  };
+  const removed = { ...y, readingGoal: { mode: 'none' } };
+  assert.equal(goalProgress(undefined, general, [x, y, removed], day).count, 3);
+  // Without a goal of its own, and with a general goal in another unit, a document follows the general one.
+  const pages = { unit: 'pages', target: 5 };
+  const solo = { readingGoal: { mode: 'none' }, readingDays: { [day]: record } };
+  assert.deepEqual(goalProgress(solo, pages, [x, solo], day), {
+    goal: pages,
+    own: false,
+    count: 2,
+  });
+  // No general goal and no goal of its own: nothing to measure.
+  assert.deepEqual(goalProgress(solo, null, [x, solo], day), { goal: null, own: false, count: 0 });
 });
 test('daily adjustments preserve deduplication and old totals are compacted without loss', () => {
   const book = { readingDays: { [day]: { ...record, pageAdjustment: -2 } } };

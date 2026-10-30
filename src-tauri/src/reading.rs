@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+// A document has a goal of its own (`Custom`) or none of its own. `Inherit` and `None` both mean
+// "no goal of its own": the document only counts in the general goal, which is all the reading of
+// the day. The three values stay valid, so catalogs and goal histories written by earlier versions
+// keep opening as they were; the interface saves `Inherit` for "no goal of its own".
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum GoalMode {

@@ -69,6 +69,16 @@ try {
         readingDays: { '2026-10-10': record(20, 2) },
       },
     ];
+    // A document deleted for good keeps only its days: they still count in the general goal.
+    data.archived = [
+      {
+        id: 'gone',
+        title: 'Livro excluído',
+        author: '',
+        readingDays: { '2026-10-12': record(10, 0) },
+        goalHistory: { '2026-09-01': inherit },
+      },
+    ];
     localStorage.setItem('folio.test.library', JSON.stringify(data));
   });
   await page.reload();
@@ -76,9 +86,23 @@ try {
     await open();
     await day('2026-10-10');
     assert.match(await page.locator('.history-day-totals').textContent(), /31 páginas4 capítulos/);
-    assert.match(await page.locator('.history-detail').textContent(), /11 \/ 10 páginas/);
+    // 6 + 5 + 20 pages: all the reading of the day counts, also in the document with a goal of its
+    // own (here in Removidos) and in the one that has none.
+    assert.match(
+      await page.locator('.history-detail').textContent(),
+      /Meta geral.*31 \/ 10 páginas/,
+    );
     assert.equal(await page.locator('.history-status').textContent(), 'Meta atingida');
     assert.equal(await page.locator('.history-books li').count(), 3);
+    // Only a document deleted for good read that day, and it counts too.
+    await day('2026-10-12');
+    assert.match(await page.locator('.history-day-totals').textContent(), /10 páginas0 capítulos/);
+    assert.match(
+      await page.locator('.history-detail').textContent(),
+      /Meta geral.*10 \/ 10 páginas/,
+    );
+    assert.equal(await page.locator('.history-status').textContent(), 'Meta atingida');
+    assert.equal(await page.locator('.history-books li').count(), 1);
     await day('2026-10-18');
     assert.equal(await page.locator('.history-status').textContent(), 'Abaixo da meta');
     await day('2026-10-29');
@@ -86,21 +110,21 @@ try {
     assert.equal(await page.locator('[data-history-day="2026-10-30"]').isDisabled(), true);
     await page.screenshot({ path: 'test-results/history/calendar.png' });
   });
-  await test('Book filter distinguishes shared and own goals, no goal and retained removed books', async () => {
+  await test('Book filter shows the own goal of a document, only the totals when it had none, and retained removed books', async () => {
     await page.locator('#history-scope').selectOption('artificial-chapters');
     await day('2026-10-10');
     assert.match(await page.locator('.history-day-totals').textContent(), /6 páginas1 capítulo/);
-    assert.match(
-      await page.locator('.history-detail').textContent(),
-      /geral compartilhada.*11 \/ 10 páginas/,
-    );
+    assert.match(await page.locator('.history-detail').textContent(), /não tinha meta própria/);
+    assert.equal(await page.locator('.history-status').textContent(), 'Sem meta própria');
+    // The setting of older versions (`none`) is the same: no goal of its own.
     await day('2026-10-22');
-    assert.equal(await page.locator('.history-status').textContent(), 'Sem meta');
+    assert.equal(await page.locator('.history-status').textContent(), 'Sem meta própria');
+    assert.match(await page.locator('.history-day-totals').textContent(), /9 páginas0 capítulos/);
     await page.locator('#history-scope').selectOption('archived');
     await day('2026-10-10');
     assert.match(
       await page.locator('.history-detail').textContent(),
-      /Meta do documento.*2 \/ 2 capítulos/,
+      /Meta própria do documento.*2 \/ 2 capítulos/,
     );
     assert.equal(await page.locator('.history-status').textContent(), 'Meta atingida');
   });
@@ -178,7 +202,7 @@ try {
     await open();
     await page.locator('#history-scope').selectOption('artificial-chapters');
     assert.match(await page.locator('.history-day-totals').textContent(), /1 página0 capítulos/);
-    assert.equal(await page.locator('.history-status').textContent(), 'Sem meta');
+    assert.equal(await page.locator('.history-status').textContent(), 'Sem meta própria');
     assert.deepEqual(app.errors, []);
     assert.deepEqual(app.external, []);
   });

@@ -80,7 +80,11 @@ if (process.argv[2] === 'prepare') {
   await page.locator('#reading-history').click();
   await page.locator('#history-scope').selectOption(expected.book);
   assert.match(await page.locator('.history-day-totals').textContent(), /4 páginas1 capítulo/);
-  assert.match(await page.locator('.history-detail').textContent(), /4 \/ 15 páginas/);
+  // The document has a goal of its own: the history measures it by that goal.
+  assert.match(
+    await page.locator('.history-detail').textContent(),
+    /Meta própria do documento.*4 \/ 15 páginas/,
+  );
   await page.locator('#history-close').click();
   await page.evaluate(
     (p) =>

@@ -115,9 +115,17 @@ Desenvolvimento e instalação de dependências usam a rede. Links externos no P
 não são abertos automaticamente. Não há conta, sincronização ou backend remoto.
 
 **Conclusão e metas.** A conclusão é uma escolha explícita independente da posição.
-`src/reading/goals.ts` trata a data local, a contagem e a herança da configuração
-global. A meta geral fica nas preferências existentes; a exceção por livro e os
-registros diários ficam no catálogo. Campos novos recebem valores padrão ao abrir
+`src/reading/goals.ts` trata a data local e a contagem. A meta geral
+(`globalCount`) soma o `dayCount` de todos os documentos com registro no dia, qualquer
+que seja a configuração de cada um, inclusive os de Removidos e os registros `archived`
+(`countedBooks`, em `main.ts`, monta essa lista para "hoje" e para o histórico). Cada
+documento tem duas opções: sem meta própria (`inherit`, e também `none`, que catálogos
+antigos guardam e `ownGoal` lê do mesmo jeito) ou meta própria (`custom`). `goalProgress`
+diz o progresso de um escopo: a meta do documento, quando ele tem uma, ou a geral. O
+rodapé do leitor usa essa regra, e a biblioteca mostra sempre a meta geral. A meta geral fica
+nas preferências existentes; a meta própria de cada documento e os registros diários ficam
+no catálogo. O Rust continua aceitando os três valores de `mode` em `readingGoal` e em
+`goalHistory`, e a interface grava `inherit` para "sem meta própria". Campos novos recebem valores padrão ao abrir
 catálogos antigos, sem migrar arquivos ou alterar os bytes dos PDFs.
 
 Uma amostra por segundo acompanha a página atual apenas com foco no leitor e sem
@@ -134,11 +142,16 @@ totais. O limite defensivo do catálogo é de 36.500 dias por livro.
 O backend valida datas, limites e IDs antes da gravação atômica. Mudanças de
 configuração não apagam o registro e a conclusão não gera crédito retroativo.
 
-**Histórico.** `src/reading/history.ts` resolve a configuração por data local.
+**Histórico.** `src/reading/history.ts` resolve a meta vigente por data local.
 Alterações da meta geral ficam em uma linha do tempo nas preferências, e as
-alterações por livro ficam no catálogo. A inicialização adiciona o primeiro
+alterações por documento ficam no catálogo. A inicialização adiciona o primeiro
 registro aos livros existentes em uma única gravação, sem inventar metas antigas.
-A configuração final de cada dia prevalece naquele dia. Totais de livros
+A configuração final de cada dia prevalece naquele dia. Para a biblioteca inteira,
+`historyDay` conta toda a leitura do dia, de todos os documentos, contra a meta geral
+que valia naquele dia; a configuração de cada documento não entra nessa conta, e os
+dias passados são recalculados com a mesma regra de hoje. Para um documento, vale a
+meta própria que ele tinha no dia; sem ela, o resultado mostra só os totais, com o
+status `no-own` ("Sem meta própria"). Totais de livros
 removidos continuam disponíveis no histórico, assim como os de livros excluídos
 definitivamente (ver **Biblioteca que escala**). O calendário calcula somente o
 mês exibido, sem carregar PDFs. A leitura de páginas e capítulos também é

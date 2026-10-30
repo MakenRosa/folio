@@ -117,6 +117,10 @@ export interface DailyGoal {
   unit: GoalUnit;
   target: number;
 }
+// A document has a goal of its own (`custom`) or none of its own. `inherit` and `none` both mean
+// "no goal of its own": the document only counts in the general goal. New saves write `inherit`;
+// `none` is what older catalogs may hold, and all three stay valid in the catalog (the native side
+// accepts them).
 export interface BookGoal extends DailyGoal {
   mode: 'inherit' | 'custom' | 'none';
 }

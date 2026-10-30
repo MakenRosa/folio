@@ -1,4 +1,4 @@
-import type { Book, DailyGoal, GoalUnit, ReadingDay } from '../types';
+import type { Book, BookGoal, DailyGoal, GoalUnit, ReadingDay } from '../types';
 
 export function localDay(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -13,9 +13,16 @@ export function normalizeGoal(value: unknown): DailyGoal | null {
     ? { unit: goal.unit!, target: goal.target! }
     : null;
 }
+// The goal of a document itself, or null when it has none. A document has one of two settings: a
+// goal of its own (`custom`) or none of its own. `inherit` is what is saved now for "no goal of its
+// own"; `none` comes from catalogs written before, when it took the document out of the general
+// goal, and is read the same way. Nothing that was saved is lost.
+export function ownGoal(setting?: BookGoal | null): DailyGoal | null {
+  return setting?.mode === 'custom' ? normalizeGoal(setting) : null;
+}
+// The goal that a document is measured by in the reader: its own, or else the general goal.
 export function effectiveGoal(book: Book, global: DailyGoal | null) {
-  const own = book.readingGoal;
-  return own?.mode === 'none' ? null : own?.mode === 'custom' ? normalizeGoal(own) : global;
+  return ownGoal(book.readingGoal) ?? global;
 }
 export function dayRecord(book: Book, day = localDay()): ReadingDay {
   return (
@@ -29,10 +36,24 @@ export function dayCount(book: Book, unit: GoalUnit, day = localDay()) {
     record[unit].length + (unit === 'pages' ? record.pageAdjustment : record.chapterAdjustment),
   );
 }
+// The general goal counts all the reading of the day, in any document: with a goal of its own or
+// without, in Removidos, or deleted for good. `books` is the whole list that has days.
 export function globalCount(books: Book[], goal: DailyGoal, day = localDay()) {
-  return books
-    .filter((b) => !b.readingGoal || b.readingGoal.mode === 'inherit')
-    .reduce((sum, b) => sum + dayCount(b, goal.unit, day), 0);
+  return books.reduce((sum, b) => sum + dayCount(b, goal.unit, day), 0);
+}
+// What the goal of a scope says of a day. A document with a goal of its own is measured by it. A
+// document without one, and the whole library (no `book`), are measured by the general goal over
+// `counted`.
+export function goalProgress(
+  book: Book | undefined,
+  global: DailyGoal | null,
+  counted: Book[],
+  day = localDay(),
+) {
+  const own = !!book && !!ownGoal(book.readingGoal);
+  const goal = book ? effectiveGoal(book, global) : global;
+  const count = !goal ? 0 : own ? dayCount(book!, goal.unit, day) : globalCount(counted, goal, day);
+  return { goal, own, count };
 }
 export function withDay(book: Book, day: string, record: ReadingDay) {
   // Keep historical totals. Only recent days need page IDs for deduplication.

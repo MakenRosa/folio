@@ -10,7 +10,7 @@ const pages = { unit: 'pages', target: 10 },
   chapters = { unit: 'chapters', target: 2 };
 const record = (p, c) => ({ pages: [], chapters: [], pageAdjustment: p, chapterAdjustment: c });
 const inherited = { mode: 'inherit', unit: 'pages', target: 10 };
-test('historical targets and book membership survive later changes of unit, goal and participation', () => {
+test('a past day counts all the reading of the day against the general goal of that day', () => {
   const prefs = {
     dailyGoal: chapters,
     goalHistory: { '2026-10-01': pages, '2026-10-15': chapters },
@@ -20,7 +20,7 @@ test('historical targets and book membership survive later changes of unit, goal
       id: 'a',
       readingGoal: { mode: 'none' },
       goalHistory: { '2026-10-01': inherited, '2026-10-20': { mode: 'none' } },
-      readingDays: { '2026-10-10': record(6, 1) },
+      readingDays: { '2026-10-10': record(6, 1), '2026-10-16': record(0, 1) },
     },
     {
       id: 'b',
@@ -30,20 +30,68 @@ test('historical targets and book membership survive later changes of unit, goal
     {
       id: 'custom',
       goalHistory: { '2026-10-01': { mode: 'custom', ...chapters } },
-      readingDays: { '2026-10-10': record(20, 2) },
+      readingDays: { '2026-10-10': record(20, 2), '2026-10-16': record(0, 1) },
     },
   ];
   const d = historyDay(books, prefs, '2026-10-10', 'global', '2026-10-29');
   assert.equal(d.pages, 31);
   assert.equal(d.chapters, 4);
-  assert.equal(d.count, 11);
+  // 6 + 5 + 20 pages: the book with a goal of its own and the one without any count as the others.
+  assert.equal(d.count, 31);
   assert.equal(d.status, 'met');
   assert.deepEqual(d.goal, pages);
-  assert.equal(historyDay(books, prefs, '2026-10-10', 'a').status, 'met');
-  assert.equal(historyDay(books, prefs, '2026-10-10', 'custom').count, 2);
-  assert.equal(historyDay(books, prefs, '2026-10-21', 'a').status, 'none');
+  assert.equal(d.own, false);
+  // 2 chapters on the 16th (one of them in the book with a goal of its own) meet the general goal.
+  const sixteenth = historyDay(books, prefs, '2026-10-16', 'global', '2026-10-29');
+  assert.deepEqual(sixteenth.goal, chapters);
+  assert.equal(sixteenth.count, 2);
+  assert.equal(sixteenth.status, 'met');
   assert.equal(historyDay(books, prefs, '2026-10-19', 'global', '2026-10-29').status, 'missed');
   assert.equal(historyDay(books, prefs, '2026-10-29', 'global', '2026-10-29').status, 'ongoing');
+  // One document: its own goal when it had one that day, only its totals when it had none.
+  const custom = historyDay(books, prefs, '2026-10-10', 'custom');
+  assert.equal(custom.count, 2);
+  assert.equal(custom.status, 'met');
+  assert.equal(custom.own, true);
+  assert.deepEqual(custom.goal, chapters);
+  const a = historyDay(books, prefs, '2026-10-10', 'a');
+  assert.equal(a.status, 'no-own');
+  assert.equal(a.goal, null);
+  assert.equal(a.pages, 6);
+  assert.equal(a.chapters, 1);
+  assert.equal(a.own, false);
+  assert.equal(historyDay(books, prefs, '2026-10-10', 'b').status, 'no-own');
+  assert.equal(historyDay(books, prefs, '2026-10-21', 'a').status, 'no-own');
+  // The 16th: the book with a goal of its own read 1 of its 2 chapters.
+  assert.equal(historyDay(books, prefs, '2026-10-16', 'custom', '2026-10-29').status, 'missed');
+});
+test('the goal of the day is the one in force that day, and a goal change does not change earlier days', () => {
+  const prefs = { dailyGoal: pages, goalHistory: { '2026-10-01': chapters, '2026-10-20': pages } };
+  const book = {
+    id: 'a',
+    goalHistory: { '2026-10-01': inherited, '2026-10-20': { mode: 'custom', ...pages } },
+    readingDays: { '2026-10-10': record(11, 2), '2026-10-25': record(11, 2) },
+  };
+  const old = historyDay([book], prefs, '2026-10-10', 'global', '2026-10-29');
+  assert.deepEqual(old.goal, chapters);
+  assert.equal(old.count, 2);
+  assert.equal(old.status, 'met');
+  const recent = historyDay([book], prefs, '2026-10-25', 'global', '2026-10-29');
+  assert.deepEqual(recent.goal, pages);
+  assert.equal(recent.count, 11);
+  assert.equal(historyDay([book], prefs, '2026-10-10', 'a').status, 'no-own');
+  assert.equal(historyDay([book], prefs, '2026-10-25', 'a').status, 'met');
+  assert.equal(historyDay([book], prefs, '2026-09-30', 'a').status, 'unknown');
+});
+test('a day of a document with no goal of its own on record is unknown, but the general goal still counts it', () => {
+  const prefs = { dailyGoal: pages, goalHistory: { '2026-10-01': pages } };
+  const unrecorded = { id: 'u', readingDays: { '2026-10-10': record(10, 0) } };
+  const other = { id: 'o', goalHistory: { '2026-10-01': inherited }, readingDays: {} };
+  assert.equal(historyDay([unrecorded, other], prefs, '2026-10-10', 'u').status, 'unknown');
+  // The general goal no longer depends on which setting each document had.
+  const general = historyDay([unrecorded, other], prefs, '2026-10-10', 'global', '2026-10-29');
+  assert.equal(general.count, 10);
+  assert.equal(general.status, 'met');
 });
 test('old totals remain visible without inventing historical goals', () => {
   const prefs = { dailyGoal: pages, goalHistory: { '2026-10-29': pages } };

@@ -67,10 +67,9 @@ import { isHighlight, noteRects } from './reading/note-rects';
 import type { SelectionCapture } from './reading/selection-capture';
 import {
   ReadingActivity,
-  dayCount,
   dayRecord,
-  effectiveGoal,
   globalCount,
+  goalProgress,
   localDay,
   withCredit,
   withDay,
@@ -1206,10 +1205,15 @@ function resetTracking() {
 function goalBooks() {
   return snapshot.books.map((b) => (current?.id === b.id ? current : b));
 }
+// Every document that has days of reading: those of the library, those in Removidos and, as books
+// with nothing but their days, those deleted for good. The general goal and the history count all
+// of them, today as in the days before.
+function countedBooks() {
+  return [...goalBooks(), ...snapshot.trash, ...snapshot.archived.map(archivedAsBook)];
+}
 function updateGoals() {
-  const books = goalBooks();
   const global = prefs.dailyGoal;
-  const done = global ? globalCount(books, global) : 0;
+  const done = global ? globalCount(countedBooks(), global) : 0;
   $('#library-goal-text').textContent = global
     ? `Hoje · ${goalLabel(global, done)}`
     : 'Definir meta diária';
@@ -1221,15 +1225,10 @@ function updateGoals() {
       '--goal',
       `${Math.min(100, Math.round((done / global.target) * 100))}%`,
     );
-  const goal = current && effectiveGoal(current, global);
-  $('#reader-goal').textContent = goal
-    ? `Hoje · ${goalLabel(
-        goal,
-        current!.readingGoal?.mode === 'custom'
-          ? dayCount(current!, goal.unit)
-          : globalCount(books, goal),
-      )}`
-    : 'Meta diária';
+  // The reader shows the goal of the document when it has one, and the general goal when it has not.
+  const progress = goalProgress(current ?? undefined, global, countedBooks());
+  $('#reader-goal').textContent =
+    current && progress.goal ? `Hoje · ${goalLabel(progress.goal, progress.count)}` : 'Meta diária';
   reader?.setGoalTracking(!!current && !current.finished);
 }
 // `back`, when the history comes from the goals, takes the reader back to them.
@@ -1237,13 +1236,7 @@ async function history(id?: string, back?: () => void) {
   await flushReading();
   resetTracking();
   // The days of a document deleted for good are still counted: its record has no file, only them.
-  showHistory(
-    prefs,
-    [...goalBooks(), ...snapshot.trash, ...snapshot.archived.map(archivedAsBook)],
-    id,
-    new Set(snapshot.archived.map((a) => a.id)),
-    back,
-  );
+  showHistory(prefs, countedBooks(), id, new Set(snapshot.archived.map((a) => a.id)), back);
 }
 async function goals(id?: string) {
   await flushReading();
@@ -1252,6 +1245,7 @@ async function goals(id?: string) {
     prefs,
     {
       books: goalBooks,
+      counted: countedBooks,
       save: patchBook,
       history: (scope) =>
         void history(scope, () => void goals(scope).catch(failing(FAILED.goals))).catch(

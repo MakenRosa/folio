@@ -52,10 +52,12 @@ export function showHistory(
     );
     const detail = historyDay(books, prefs, selected, scope, today);
     const target = detail.goal
-      ? `${detail.shared ? 'Meta geral compartilhada' : 'Meta do documento'} · ${detail.count} / ${detail.goal.target} ${detail.goal.unit === 'pages' ? 'páginas' : 'capítulos'}`
+      ? `${detail.own ? 'Meta própria do documento' : 'Meta geral'} · ${detail.count} / ${detail.goal.target} ${detail.goal.unit === 'pages' ? 'páginas' : 'capítulos'}`
       : detail.status === 'none'
-        ? 'Não havia meta configurada neste dia.'
-        : 'A meta deste dia não foi registrada. Os totais disponíveis foram preservados.';
+        ? 'Não havia meta geral neste dia.'
+        : detail.status === 'no-own'
+          ? 'Este documento não tinha meta própria neste dia. A leitura dele entra na meta geral.'
+          : 'A meta deste dia não foi registrada. Os totais disponíveis foram preservados.';
     const contributions = detail.books.filter(
       (b) => dayCount(b, 'pages', selected) > 0 || dayCount(b, 'chapters', selected) > 0,
     );
@@ -70,7 +72,7 @@ export function showHistory(
       <div class="history-controls"><div><label class="field-label" for="history-scope">Acompanhar</label><select id="history-scope" class="text-field"><option value="global">Biblioteca inteira</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(optionLabel(b))}</option>`).join('')}</select></div>
       <div class="history-month">${ib('history-prev', 'Mês anterior', 'left', previous < first.slice(0, 7) ? 'disabled' : '')}<label class="sr-only" for="history-month">Mês do histórico</label><input id="history-month" class="text-field" type="month" value="${month}" min="${first.slice(0, 7)}" max="${today.slice(0, 7)}" aria-describedby="history-hint">${ib('history-next', 'Próximo mês', 'right', next > today.slice(0, 7) ? 'disabled' : '')}</div></div>
       <p id="history-hint" class="field-hint" role="status"></p>
-      <p class="mode-description">${scope === 'global' ? 'Os totais incluem todos os documentos. A meta geral soma apenas os que usavam essa configuração no dia.' : 'Os totais são deste documento. Quando ele usa a meta geral, o resultado considera todos os documentos que compartilham essa meta.'}</p>
+      <p class="mode-description">${scope === 'global' ? 'Os totais incluem todos os documentos. A meta geral conta toda a leitura do dia, em qualquer documento.' : 'Os totais são deste documento. Com meta própria no dia, o resultado usa a meta dele. Sem meta própria, só os totais aparecem, e a leitura continua contando na meta geral.'}</p>
       <div class="history-stats"><div><strong>${summary.pages}</strong><span>páginas no mês</span></div><div><strong>${summary.chapters}</strong><span>capítulos no mês</span></div><div><strong>${summary.met}</strong><span>dias com meta atingida</span></div></div>
       <div class="history-week" aria-hidden="true">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => `<span>${d}</span>`).join('')}</div>
       <p id="history-keys" class="sr-only">Use as setas para andar pelos dias, Home e End para ir ao começo e ao fim da semana, Page Up e Page Down para trocar de mês, e Enter ou Espaço para escolher o dia.</p>
@@ -79,12 +81,12 @@ export function showHistory(
           const d = historyDay(books, prefs, day, scope, today),
             future = day > today;
           const state = !d.recorded ? 'Sem registro' : statusLabels[d.status];
-          return `<button class="history-day ${future ? 'future' : d.status}" data-history-day="${day}" tabindex="${day === selected ? 0 : -1}" ${future ? 'disabled' : ''} aria-pressed="${day === selected}" aria-label="${esc(`${label(day)}: ${future ? 'dia futuro' : `${d.pages} páginas, ${d.chapters} capítulos. ${state}`}`)}"><strong>${Number(day.slice(-2))}${day === today ? '<span class="history-today">hoje</span>' : ''}</strong><span>${future ? '' : d.recorded ? `${d.pages} pág. · ${d.chapters} cap.` : 'Sem registro'}</span><small>${future || !d.recorded ? '' : d.status === 'met' ? '✓ Atingida' : d.status === 'missed' ? 'Abaixo' : d.status === 'ongoing' ? 'Em andamento' : d.status === 'none' ? 'Sem meta' : 'Não registrada'}</small></button>`;
+          return `<button class="history-day ${future ? 'future' : d.status}" data-history-day="${day}" tabindex="${day === selected ? 0 : -1}" ${future ? 'disabled' : ''} aria-pressed="${day === selected}" aria-label="${esc(`${label(day)}: ${future ? 'dia futuro' : `${d.pages} páginas, ${d.chapters} capítulos. ${state}`}`)}"><strong>${Number(day.slice(-2))}${day === today ? '<span class="history-today">hoje</span>' : ''}</strong><span>${future ? '' : d.recorded ? `${d.pages} pág. · ${d.chapters} cap.` : 'Sem registro'}</span><small>${future || !d.recorded ? '' : d.status === 'met' ? '✓ Atingida' : d.status === 'missed' ? 'Abaixo' : d.status === 'ongoing' ? 'Em andamento' : d.status === 'none' ? 'Sem meta' : d.status === 'no-own' ? 'Sem meta própria' : 'Não registrada'}</small></button>`;
         })
         .join('')}</div>
       <section class="history-detail" aria-live="polite"><div class="history-detail-title"><h3>${esc(label(selected))}</h3><span class="history-status ${detail.status}">${detail.recorded ? statusLabels[detail.status] : 'Sem registro'}</span></div><p>${esc(target)}</p><div class="history-day-totals"><strong>${quantity(detail.pages, 'página')}</strong><strong>${quantity(detail.chapters, 'capítulo')}</strong></div>
       ${contributions.length ? `<ul class="history-books">${contributions.map((b) => `<li><span>${esc(b.title)}</span><span>${dayCount(b, 'pages', selected)} pág. · ${dayCount(b, 'chapters', selected)} cap.</span></li>`).join('')}</ul>` : `<p>${detail.recorded ? 'Nenhuma leitura registrada neste dia.' : 'Ainda não há dados para este dia.'}</p>`}</section>
-      <p class="mode-description">A última meta salva no dia vale para aquele dia. Alterações posteriores não reavaliam dias anteriores. Os totais incluem ajustes manuais. Dias antigos sem registro não são reconstruídos.</p></div>`,
+      <p class="mode-description">A meta que valia em cada dia é a última salva naquele dia. Alterações posteriores não mudam a meta de dias anteriores. Os totais incluem ajustes manuais. Dias antigos sem registro não são reconstruídos.</p></div>`,
       drawn,
     );
     drawn = true;

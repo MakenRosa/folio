@@ -66,7 +66,7 @@ const TOPICS = [
   ],
   [
     '4. Acompanhe sua leitura',
-    'Use Concluir leitura, no topo do leitor, para marcar um documento como concluído. Metas de leitura, na biblioteca, define uma meta diária geral, uma meta própria por documento ou nenhuma. O progresso de hoje também aparece no rodapé do leitor; clique nele para ajustar a configuração ou os totais do dia. Em Histórico de leitura, consulte o calendário, os dias com meta atingida e quantas páginas e capítulos leu em cada dia.',
+    'Use Concluir leitura, no topo do leitor, para marcar um documento como concluído. Metas de leitura, na biblioteca, define a meta diária geral, que conta toda a leitura do dia, em qualquer documento. Cada documento fica sem meta própria (só entra na meta geral) ou tem uma meta própria, que também entra na meta geral. O progresso de hoje aparece no rodapé do leitor, com a meta do documento, se ele tem uma, ou a meta geral; clique nele para ajustar a configuração ou os totais do dia. Em Histórico de leitura, consulte o calendário, os dias com meta atingida e quantas páginas e capítulos leu em cada dia.',
   ],
 ];
 const DETAILS = [

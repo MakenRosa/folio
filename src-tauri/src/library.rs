@@ -721,6 +721,27 @@ mod tests {
         assert_eq!(restored.reading_days["2026-10-01"].page_adjustment, 8);
     }
     #[test]
+    fn the_three_goal_modes_stay_valid_in_goals_and_in_their_history() {
+        // `inherit` and `none` both mean "no goal of its own" now, and `custom` is a goal of its
+        // own. A catalog saved with any of them opens and is saved again as it was.
+        let old = serde_json::json!({"id":"old","title":"Livro",
+            "readingGoal":{"mode":"none","unit":"pages","target":10},
+            "goalHistory":{
+                "2026-10-01":{"mode":"inherit","unit":"pages","target":10},
+                "2026-10-10":{"mode":"custom","unit":"chapters","target":2},
+                "2026-10-20":{"mode":"none","unit":"pages","target":10}}});
+        let book: Book = serde_json::from_value(old.clone()).unwrap();
+        let saved = serde_json::to_value(book).unwrap();
+        assert_eq!(saved["readingGoal"], old["readingGoal"]);
+        assert_eq!(saved["goalHistory"], old["goalHistory"]);
+        for mode in ["inherit", "custom", "none"] {
+            let patch: Patch = serde_json::from_value(serde_json::json!({
+                "goalDay":"2026-10-21","readingGoal":{"mode":mode,"unit":"pages","target":10}}))
+            .unwrap();
+            assert!(patch.reading_goal.unwrap().validate().is_ok());
+        }
+    }
+    #[test]
     fn legacy_catalog_adds_goals_without_changing_reading_data() {
         let old = serde_json::json!({"id":"old", "page":42, "pages":300,
             "top":123.5, "left":24.0, "zoom":"page-width", "finished":true,

@@ -1,5 +1,5 @@
 import type { Book, DailyGoal, Preferences } from '../types';
-import { dayCount, localDay, normalizeGoal } from './goals.ts';
+import { dayCount, globalCount, localDay, normalizeGoal, ownGoal } from './goals.ts';
 
 export function validDay(day: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
@@ -29,14 +29,21 @@ export function rememberGoal(prefs: Preferences, day = localDay()) {
       [day]: prefs.dailyGoal ? { ...prefs.dailyGoal } : null,
     };
 }
-export type DayStatus = 'met' | 'missed' | 'ongoing' | 'none' | 'unknown';
+// 'no-own' is a day of one document that had no goal of its own: its totals are shown, and its
+// reading still counted in the general goal.
+export type DayStatus = 'met' | 'missed' | 'ongoing' | 'none' | 'unknown' | 'no-own';
 export const statusLabels: Record<DayStatus, string> = {
   met: 'Meta atingida',
   missed: 'Abaixo da meta',
   ongoing: 'Em andamento',
   none: 'Sem meta',
   unknown: 'Meta não registrada',
+  'no-own': 'Sem meta própria',
 };
+// What the goal of the day says of a scope, by the settings that were in force on that day.
+// The whole library (the general goal) counts all the reading of the day, in any document, with a
+// goal of its own or without. A document is measured by its own goal when it had one, and when it
+// had none only its totals are shown. A setting that was never recorded is 'unknown'.
 export function historyDay(
   books: Book[],
   prefs: Preferences,
@@ -48,34 +55,24 @@ export function historyDay(
   const scopeBooks = selected ? [selected] : books;
   const pages = scopeBooks.reduce((sum, b) => sum + dayCount(b, 'pages', day), 0);
   const chapters = scopeBooks.reduce((sum, b) => sum + dayCount(b, 'chapters', day), 0);
-  const own = selected && atDay(selected.goalHistory, day);
-  const shared = !selected || own?.mode === 'inherit';
+  const setting = selected && atDay(selected.goalHistory, day);
   const goal: DailyGoal | null | undefined = selected
-    ? own === undefined
+    ? setting === undefined
       ? undefined
-      : own.mode === 'none'
-        ? null
-        : own.mode === 'custom'
-          ? normalizeGoal(own)
-          : atDay(prefs.goalHistory, day)
+      : ownGoal(setting)
     : atDay(prefs.goalHistory, day);
-  const countedBooks = shared
-    ? books.filter((b) => atDay(b.goalHistory, day)?.mode === 'inherit')
-    : scopeBooks;
-  const count = goal ? countedBooks.reduce((sum, b) => sum + dayCount(b, goal.unit, day), 0) : 0;
-  // Old totals are useful, but unknown book membership cannot prove a shared goal.
-  const incomplete =
-    shared &&
-    books.some(
-      (b) =>
-        !atDay(b.goalHistory, day) &&
-        (dayCount(b, 'pages', day) > 0 || dayCount(b, 'chapters', day) > 0),
-    );
+  const count = goal
+    ? selected
+      ? dayCount(selected, goal.unit, day)
+      : globalCount(books, goal, day)
+    : 0;
   const status: DayStatus =
-    goal === undefined || (goal && incomplete)
+    goal === undefined
       ? 'unknown'
       : goal === null
-        ? 'none'
+        ? selected
+          ? 'no-own'
+          : 'none'
         : count >= goal.target
           ? 'met'
           : day === today
@@ -83,8 +80,10 @@ export function historyDay(
             : 'missed';
   const recorded =
     !!scopeBooks.some((b) => b.readingDays?.[day]) ||
-    (selected ? own !== undefined : atDay(prefs.goalHistory, day) !== undefined);
-  return { day, pages, chapters, goal, count, status, shared, recorded, books: scopeBooks };
+    (selected ? setting !== undefined : atDay(prefs.goalHistory, day) !== undefined);
+  // `own`: the goal is the one of the document, not the general goal.
+  const own = !!selected && !!goal;
+  return { day, pages, chapters, goal, count, status, own, recorded, books: scopeBooks };
 }
 export function monthDays(month: string) {
   const [y, m] = month.split('-').map(Number);

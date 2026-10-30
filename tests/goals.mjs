@@ -29,8 +29,8 @@ const credited = (kind, value) =>
       { timeout: 5000 },
     )
     .catch(() => {});
-const openBook = async () => {
-  await click('[data-open="artificial-chapters"]');
+const openBook = async (id = 'artificial-chapters') => {
+  await click(`[data-open="${id}"]`);
   await page.waitForFunction(
     () =>
       document.querySelector('#reader-loading').hidden &&
@@ -114,36 +114,51 @@ try {
     await click('#finish-reading');
     await click('#back');
   });
-  await test('Global aggregation respects inherited, custom and disabled book goals; manual totals replace rather than add', async () => {
+  await test('The general goal counts all the reading of the day, with or without a goal of its own; manual totals replace rather than add', async () => {
+    // `solo` keeps the setting that older versions saved for "Sem meta" (`none`): it is read as no goal of its own.
     await page.evaluate(() => {
       const data = JSON.parse(localStorage.getItem('folio.test.library'));
       for (const [id, title] of [
         ['second', 'Segundo livro'],
-        ['custom', 'Meta própria'],
-        ['none', 'Sem meta'],
+        ['custom', 'Com meta própria'],
+        ['solo', 'Sem meta própria'],
       ])
-        data.books.push({ ...data.books[0], id, title });
+        data.books.push({
+          ...data.books[0],
+          id,
+          title,
+          ...(id === 'solo' ? { readingGoal: { mode: 'none', unit: 'pages', target: 10 } } : {}),
+        });
       localStorage.setItem('folio.test.library', JSON.stringify(data));
     });
     await page.reload();
-    await configure('global', 'custom', 'pages', 20);
+    await configure('global', 'custom', 'pages', 100);
     await configure('custom', 'custom', 'chapters', 2);
-    await configure('none', 'none');
+    await configure('second', 'inherit');
+    assert.equal((await book('second')).readingGoal.mode, 'inherit');
     await log('artificial-chapters', 4, 1);
     await log('second', 5, 1);
     await log('custom', 30, 2);
-    await log('none', 40, 3);
-    assert.match(await page.locator('#library-goal').textContent(), /9 \/ 20 páginas/);
+    await log('solo', 40, 3);
+    // 4 + 5 + 30 + 40: the document with a goal of its own and the one without any count as the rest.
+    assert.match(await page.locator('#library-goal').textContent(), /79 \/ 100 páginas/);
     await log('artificial-chapters', 6, 1);
-    assert.match(await page.locator('#library-goal').textContent(), /11 \/ 20 páginas/);
+    assert.match(await page.locator('#library-goal').textContent(), /81 \/ 100 páginas/);
     await goals('custom');
     assert.match(
       await page.locator('#goal-current').textContent(),
       /2 \/ 2 capítulos · Meta atingida/,
     );
+    assert.equal(await page.locator('.goal-status strong').textContent(), 'Hoje · meta própria');
+    await click('#goals-close');
+    // A document without a goal of its own is shown the general goal.
+    await goals('second');
+    assert.match(await page.locator('#goal-current').textContent(), /81 \/ 100 páginas/);
+    assert.equal(await page.locator('.goal-status strong').textContent(), 'Hoje · meta geral');
     await click('#goals-close');
     await configure('global', 'custom', 'chapters', 3);
-    assert.match(await page.locator('#library-goal').textContent(), /2 \/ 3 capítulos/);
+    // 1 + 1 + 2 + 3 chapters, with the goal of 2 chapters of the document that has one counted too.
+    assert.match(await page.locator('#library-goal').textContent(), /7 \/ 3 capítulos/);
     await page.screenshot({ path: 'test-results/goals/library.png' });
     await goals();
     await page.screenshot({ path: 'test-results/goals/global.png' });
@@ -155,6 +170,36 @@ try {
       true,
     );
     await click('#goals-close');
+  });
+  await test('The dialog offers two settings for a document, and the reader shows its own goal or else the general one', async () => {
+    await goals('second');
+    assert.deepEqual(
+      await page.locator('#goal-mode option').evaluateAll((o) => o.map((x) => x.textContent)),
+      ['Sem meta própria', 'Meta própria'],
+    );
+    assert.doesNotMatch(
+      await page.locator('#dialog').textContent(),
+      /fora dessa soma|Usar meta geral/,
+    );
+    await click('#goals-close');
+    await goals('global');
+    assert.deepEqual(
+      await page.locator('#goal-mode option').evaluateAll((o) => o.map((x) => x.textContent)),
+      ['Definir meta geral', 'Sem meta geral'],
+    );
+    await click('#goals-close');
+    await openBook();
+    assert.match(
+      await page.locator('#reader-goal').textContent(),
+      /Hoje · 7 \/ 3 capítulos · Meta atingida/,
+    );
+    await click('#back');
+    await openBook('custom');
+    assert.match(
+      await page.locator('#reader-goal').textContent(),
+      /Hoje · 2 \/ 2 capítulos · Meta atingida/,
+    );
+    await click('#back');
   });
   await test('Active reading credits unique PDF pages and a recognized chapter; an open dialog pauses tracking', async () => {
     await openBook();
@@ -218,8 +263,10 @@ try {
     assert.equal(await page.locator('#goal-unit').inputValue(), 'chapters');
     assert.equal(await page.locator('#goal-target').inputValue(), '2');
     await click('#goals-close');
-    await goals('none');
-    assert.equal(await page.locator('#goal-mode').inputValue(), 'none');
+    // The setting of older versions is kept as it was and read as "no goal of its own".
+    await goals('solo');
+    assert.equal(await page.locator('#goal-mode').inputValue(), 'inherit');
+    assert.equal((await book('solo')).readingGoal.mode, 'none');
     assert.deepEqual(app.errors, []);
     assert.deepEqual(app.external, []);
   });

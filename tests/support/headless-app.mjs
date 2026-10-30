@@ -153,6 +153,8 @@ export async function headlessApp({
           async invoke(command, args = {}) {
             if (command === 'library_list') {
               const data = snapshot();
+              // Like the native side, the first record of a document's goals is its current setting
+              // as it is stored: `inherit`, `custom` and `none` are all valid and kept as they are.
               if (args.historyDay) {
                 for (const book of [...data.books, ...data.trash])
                   if (!Object.keys(book.goalHistory || {}).length)

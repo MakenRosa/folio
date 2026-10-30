@@ -89,9 +89,12 @@ tela atravessa a divisão entre duas páginas do PDF.
   mostra o progresso enquanto eles estão ocultos. F11 alterna a tela cheia.
 - Retomada opcional de página, posição e zoom por documento.
 - **Concluir leitura** no topo do leitor, com opção de desfazer, sem perder a posição.
-- **Metas de leitura** diárias em páginas ou capítulos. A meta geral soma os documentos
-  que a usam; cada documento pode ter uma meta própria ou ficar sem meta. Acompanhe o
-  progresso na biblioteca ou no rodapé do leitor e ajuste os totais de hoje quando necessário.
+- **Metas de leitura** diárias em páginas ou capítulos. A meta geral conta toda a leitura
+  do dia, em qualquer documento, também nos de Removidos e nos excluídos definitivamente.
+  Cada documento fica sem meta própria (só entra na meta geral) ou tem uma meta própria, que
+  também entra na meta geral. A biblioteca mostra o progresso da meta geral; o rodapé do
+  leitor mostra o da meta do documento, quando ele tem uma, ou o da geral. Ajuste os totais
+  de hoje quando necessário.
 - Interface clara/escura/sistema, papel claro/sépia/escuro, tela quente e brilho
   da leitura de 10% a 100%, combináveis e salvos automaticamente. Brilho e tela quente
   têm ajustes rápidos na barra de leitura.
@@ -176,10 +179,13 @@ também são registradas. Registros de documentos removidos continuam disponíve
 **Excluir definitivamente**, os dias de leitura do documento continuam contando no calendário (o documento
 aparece no filtro, sem arquivo, e não volta à biblioteca nem a Removidos).
 
-O resultado usa a configuração que valia naquele dia. A última alteração feita
-no próprio dia prevalece, mas mudanças posteriores não reavaliam dias anteriores.
-A meta geral considera a participação histórica de cada documento. Dias com totais
-antigos, mas sem configuração registrada, exibem **Meta não registrada**. O
+O resultado usa a meta que valia naquele dia. A última alteração feita no próprio
+dia prevalece, mas mudanças posteriores não reavaliam a meta de dias anteriores. Na
+biblioteca inteira, cada dia conta toda a leitura daquele dia, em qualquer documento
+(com meta própria ou sem), contra a meta geral do dia. Em um documento, o dia usa a
+meta própria que ele tinha; sem meta própria, aparecem os totais dele e o status
+**Sem meta própria**. Os dias passados são recalculados com essa regra. Dias com
+totais antigos, mas sem configuração registrada, exibem **Meta não registrada**. O
 aplicativo não reconstrói leituras que nunca foram salvas ou já foram descartadas
 por versões anteriores.
 
