@@ -26,6 +26,9 @@ export async function connectTestApp() {
       });
     const snapshot = await api('library_list');
     assert.equal(path.resolve(snapshot.folder).toLowerCase(), library.toLowerCase());
+    // The window fits itself to the screen, which is smaller on a CI runner than on a desktop.
+    // Every suite starts from the same layout; the ones that test other sizes set their own.
+    await page.setViewportSize({ width: 1280, height: 820 });
     return { browser, page, api };
   } catch (error) {
     await browser.close();
