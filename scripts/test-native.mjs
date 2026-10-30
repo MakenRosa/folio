@@ -79,7 +79,8 @@ try {
     config,
   );
   await launch();
-  for (const file of ['e2e', 'position', 'brightness', 'kindle']) await node(`tests/${file}.mjs`);
+  for (const file of ['e2e', 'position', 'brightness', 'kindle', 'joined-pages', 'chapters'])
+    await node(`tests/${file}.mjs`);
   await node('tests/kindle-restart.mjs', 'prepare');
   await waitClosed();
   await launch();

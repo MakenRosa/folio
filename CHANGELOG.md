@@ -1,5 +1,85 @@
 # Histórico
 
+## Não publicado
+
+- O Fólio abre PDFs pelo Explorer e lembra a janela. O instalador registra `.pdf` (`bundle.fileAssociations`, classe `Folio.PDF`, visualizador) e oferece o Fólio em **Abrir com** sem mudar o programa padrão do usuário: o gancho `src-tauri/windows/installer-hooks.nsh` devolve o valor de `HKCU\Software\Classes\.pdf` que o Tauri trocaria, inclui a classe em `OpenWithProgids` e desfaz isso ao desinstalar. Os arquivos da linha de comando (da primeira instância ou entregues por uma segunda, com os caminhos relativos resolvidos pela pasta dela) ficam num estado nativo; o novo comando `take_pending_files` os devolve uma vez e o evento `open-files` avisa que há mais. O frontend os importa por `import_pdfs`, abre o primeiro livro (mesmo com outro aberto, que guarda a posição), mostra o resumo quando são vários, e espera uma importação em andamento. `tauri-plugin-window-state` guarda tamanho, posição e se estava maximizada (nunca a tela cheia); uma janela que não cabe mais nos monitores volta menor, ao centro, e a primeira execução continua centralizada. O estado fica em `%APPDATA%\com.lume.pdf\.window-state.json`, e a compilação de desenvolvimento usa outro arquivo.
+- Notas e realces no próprio texto. Ao selecionar um trecho no PDF, uma barra flutuante junto ao fim da seleção oferece Realçar (amarelo, verde, azul ou rosa), Anotar e Copiar; ela some ao desfazer a seleção, ao rolar, ao clicar fora e com Esc, e nunca cobre o trecho nem sai da janela. As teclas H (realçar na última cor) e N (anotar) agem sobre a seleção. O realce é uma nota com `rects` (um retângulo `[x1, y1, x2, y2]` por linha, em unidades do PDF, independentes de zoom e rotação) e `color`, e o texto pode ficar vazio; uma seleção que atravessa páginas vira um realce por página (ao anotar, vale o trecho da primeira). Uma camada por página, dentro da página do PDF.js e acima do texto, desenha os realces sem atrapalhar a seleção nem os links, e os redesenha ao renderizar, no zoom, na rotação, na troca de modo, nas duas páginas lado a lado e na junção de margens do Kindle. Os papéis claro e sépia multiplicam a cor sobre a página; o escuro, que inverte as cores, usa uma luz translúcida. Notas com texto ganham um marcador na margem. Clicar num realce abre o menu Editar nota, Mudar cor, Copiar texto e Excluir realce (com "Desfazer"); a aba Notas ganhou busca por texto e citação, a amostra da cor, "Realce" para os sem texto e o salto até a altura do realce, que usa o histórico de voltar. Os campos `rects` e `color` são opcionais (`#[serde(default)]`), validados no Rust (números finitos, no máximo 500 retângulos por nota, uma das quatro cores) e ausentes das notas antigas, que continuam abrindo.
+- Exportar notas. "Exportar notas" na aba Notas e no menu do documento abre o diálogo de salvar com o filtro `.md` e chama o novo comando nativo `export_notes(id, destination, offsetMinutes?)`, que monta o Markdown no Rust a partir do catálogo (título, autor, notas por página em ordem de leitura, com a citação em blockquote, o texto, a cor do realce e a data no fuso de quem lê), exige a extensão `.md` e grava de forma atômica (arquivo temporário na mesma pasta e troca).
+
+- Biblioteca que escala. Etiquetas (até 20 por livro, de até 40 caracteres, sem repetir ignorando maiúsculas e acentos) pelo menu "Etiquetas…", com sugestões das já usadas, uma seção Etiquetas na barra lateral com contagem e filtro, e as primeiras etiquetas nos cartões. A busca da biblioteca passa a incluir etiquetas e o texto das notas (texto e citação), e o cartão diz "Encontrado nas notas" quando só elas respondem.
+- Seleção múltipla (Ctrl + clique, Shift + clique, a caixa do cartão, Ctrl + A e Esc) com uma barra fixa de ações em lote: favoritar, concluir, adicionar etiqueta, remover da biblioteca (com "Desfazer" para todos) e, em Removidos, restaurar e excluir definitivamente. Os comandos nativos `update_books`, `remove_books`, `restore_books` e `purge_books` fazem uma única gravação atômica do catálogo: se um item for recusado, nada muda.
+- Esvaziar Removidos. "Excluir definitivamente" no menu de cada item e "Esvaziar Removidos" no topo da aba pedem confirmação (com o número de documentos e o espaço liberado, o foco inicial em Cancelar) e depois gravam o catálogo e apagam `pdfs/<id>.pdf` e `covers/<id>.png`. Um arquivo que não pôde ser apagado não desfaz o catálogo, e o aviso diz o caso. O histórico de leitura é mantido: o catálogo guarda para cada livro excluído um registro `archived` (id, título, autor, `readingDays` e `goalHistory`) que entra no Histórico e não aparece na biblioteca nem em Removidos. A deduplicação na importação ignora esses registros, então reimportar o PDF cria um livro novo. O campo `tags` e a lista `archived` são novos no catálogo; catálogos antigos continuam abrindo.
+
+- Progresso de leitura calculado em um só lugar. O rodapé do leitor (rolagem e Kindle) e a biblioteca (cartão Continuar leitura, grade e lista) mostram o mesmo percentual para a mesma página.
+- A primeira página é 0%; a última página, o fim do documento no leitor e os livros concluídos são 100%. O valor não muda com o tamanho da janela, o zoom ou a junção de páginas do Kindle.
+- Tempo restante estimado no rodapé do leitor, como "≈ 12 min no capítulo · 3 h 10 min no livro", e no cartão Continuar leitura. O ritmo vem da leitura ativa, com os mesmos critérios das metas, e fica nas preferências por livro. Nada aparece antes de cinco páginas medidas, e sem capítulos reconhecidos só o tempo do livro é mostrado.
+
+- Duas páginas lado a lado na rolagem contínua, para monitores largos: "Duas páginas" ou "Duas páginas, capa separada" (a página 1 fica sozinha). A escolha está nas preferências, no botão ao lado do zoom e na tecla L, vale para todos os livros e fica salva.
+- Com duas páginas, os botões e as setas avançam por par, "Largura da página" e "Página inteira" consideram o par e a posição de leitura é mantida ao trocar de disposição. O modo Kindle usa uma coluna e deixa a escolha de lado; ela volta ao sair dele.
+- As metas contam as duas páginas em vista de um par depois dos mesmos oito segundos, e o capítulo que começa na segunda página do par também é concluído. O ritmo de leitura divide o tempo de um par entre as duas páginas.
+- Notas feitas a partir de um trecho selecionado ficam na página do trecho, mesmo quando é a outra página do par.
+
+- Barra lateral do leitor mais informativa. O sumário passa a marcar a seção que você está lendo e a rolar até ela sem tirar o foco. Os níveis se recolhem: por padrão aparecem o primeiro nível e o caminho até a seção atual, e o teclado funciona (setas, Enter e Espaço).
+- Nova aba Páginas, com miniaturas desenhadas só perto da área visível e liberadas ao sair dela, no máximo 16 ao mesmo tempo. Ela marca a página atual, ou as duas páginas de um par lado a lado, e leva à página com clique, Enter ou Espaço. As miniaturas seguem a rotação e o papel escolhidos.
+- A barra lembra se estava aberta, a aba e a largura, em todos os livros e depois de reiniciar. Arraste a borda dela, ou use as setas, para mudar a largura, de 220 a 480 px e no máximo 40% da janela; o valor é gravado ao soltar. A tecla S mostra e esconde a barra.
+- A posição de leitura se mantém ao mudar a largura, na rolagem, em duas páginas e no Kindle. O sumário e os capítulos reconhecidos passam a compartilhar a mesma resolução dos destinos.
+
+- Menus que cabem na tela. O painel de opções de um documento, o botão "Mais opções" do leitor e os ajustes de Brilho e Tela quente abrem abaixo do botão quando há espaço e acima quando não há, sempre dentro da janela (margem de 8 px) e com rolagem interna como último recurso. Eles fecham ao rolar a biblioteca ou redimensionar a janela, para não ficarem longe do botão.
+- Os menus de opções funcionam pelo teclado: o foco vai para o primeiro item, as setas circulam, Home e End vão às pontas, uma letra salta para o item que começa com ela, Esc fecha e devolve o foco ao botão, e Tab fecha. Os leitores de tela anunciam menu, itens e se o botão está aberto ou fechado. Esc fecha só o menu, sem sair da tela cheia nem fechar a busca.
+- Clique direito num cartão ou numa linha da biblioteca abre as opções do documento no ponteiro, sem o menu do sistema. Shift + F10 ou a tecla Menu, com o foco num cartão, abrem o mesmo menu junto ao cartão. Em Removidos o menu oferece só Restaurar.
+
+- Avisos que não se perdem. Até três aparecem ao mesmo tempo, empilhados, e o mais antigo sai quando chega o quarto. Cada aviso tem o próprio tempo, que pausa com o mouse ou o foco, um botão Fechar (Esc fecha o aviso em foco) e a própria ação: ao remover dois PDFs seguidos, os dois mantêm o "Desfazer", e o aviso diz qual é o documento. Uma ação clicada fecha o aviso, e o movimento reduzido tira as animações.
+- Erros em frases claras, em português: senha, PDF inválido ou danificado, leitura interrompida, arquivo em uso, sem permissão, sem espaço em disco e os erros da biblioteca. O texto técnico original fica atrás do botão "Detalhes". Um erro é anunciado na hora (`role="alert"`) e fica até ser fechado. "Não foi possível abrir este PDF" e a lista de arquivos não importados usam a mesma tradução. Fechar o pedido de senha não mostra erro.
+- A importação mostra o andamento no botão Adicionar PDFs ("Copiando 3 de 10…", com uma barra fina), sem um aviso por arquivo. Os leitores de tela ouvem o progresso numa região discreta, e no fim há um só aviso de resumo.
+- Dicas mostradas uma só vez, gravadas nas preferências (`hints`). A dica do modo Kindle e o aviso "Chegou ao fim?" aparecem na primeira vez e não voltam, nem depois de reiniciar. O aviso de catálogo recuperado do backup também deixa de se repetir a cada atualização da biblioteca.
+
+- Voltar para onde você estava depois de um salto. Sumário, links internos do PDF, o primeiro resultado da busca, miniaturas, marcas, notas, o campo de página, Home e End no Kindle e "Ler do início" guardam a posição de antes (página e ponto exato, que valem em qualquer zoom, rotação ou modo) e mostram sobre o PDF, sem deslocá-lo, o botão "Voltar à pág. X"; depois de voltar, ele oferece "Avançar à pág. Y". O botão some ao ser usado, em cerca de 15 s (pausa com o mouse ou o foco), com Esc em foco ou ao fechar o livro. Alt + ← volta e Alt + → avança, e os botões laterais do mouse fazem o mesmo; no máximo 50 posições por sessão do documento, sem gravar nada. Saltos para a mesma página, ou perto o bastante para estar na tela, não contam, e a busca guarda só a posição anterior ao primeiro resultado. Rolar e virar página não são saltos, e o ritmo recomeça na página de chegada. **Mudou:** voltar à biblioteca agora é Ctrl + W, porque Alt + ← passou a voltar no documento.
+
+- Importação que já entrega a biblioteca pronta. Uma fila em segundo plano, um PDF por vez, gera a capa e lê o número de páginas e o autor dos PDFs recém-importados e dos livros que ainda não tinham capa ou páginas, ao abrir o Fólio. Cada cartão se atualiza sozinho, sem perder a rolagem nem o foco. A fila espera enquanto um livro está aberto e continua ao voltar à biblioteca; PDFs com senha ou inválidos são ignorados em silêncio e não são tentados de novo na mesma sessão.
+- O autor aparece nos cartões da grade e da lista e entra na busca da biblioteca. O título do PDF só substitui o do livro enquanto ele ainda é o nome do arquivo (sem renomeação sua) e se for plausível: vazio, curto demais, "Untitled" ou "Sem título", "Microsoft Word - …", nome de arquivo (.doc, .pdf), só números ou pontuação ficam de fora.
+- Pastas inteiras. "Adicionar pasta" (abaixo de Adicionar PDFs e no estado vazio) e o arrastar e soltar importam os PDFs da pasta e das subpastas, sem diferenciar maiúsculas. Links simbólicos e junções não são seguidos, e arquivos que não são PDF dentro da pasta são ignorados sem erro (um arquivo escolhido por nome que não seja PDF continua gerando erro). O andamento do botão conta os arquivos encontrados.
+- O resumo da importação diz mais. Com um só PDF adicionado, o aviso tem a ação "Abrir". Quando só havia duplicatas, o aviso diz qual livro já existia ("“Título” já estava na biblioteca") e "Mostrar" limpa a busca e o filtro, rola até o cartão, dá foco a ele e o destaca por um instante. O resultado de `import_pdfs` traz `existing` (id e título de cada livro que já existia), `save_cover` devolve o livro atualizado e `update_book` aceita `author`, com limites para `title`, `author` e `pages`.
+
+## 1.8.0
+
+- Histórico de leitura com calendário mensal, filtro por livro e detalhes de cada dia.
+- Totais diários e mensais de páginas e capítulos, com indicação das metas atingidas.
+- Configuração de metas registrada por data, preservando os resultados anteriores após alterações.
+- Aproveitamento de registros antigos sem inventar metas que não foram salvas.
+- Leitura acompanhada mesmo sem meta, preservando totais antigos em formato compacto.
+- Histórico disponível também para livros removidos e validado após reiniciar o aplicativo.
+
+## 1.7.0
+
+- Ação Concluir leitura no leitor, com desfazer e indicação na biblioteca, preservando a posição.
+- Metas diárias em páginas ou capítulos, globais ou próprias por livro, com opção de ficar sem meta.
+- A meta geral soma somente os livros que a usam. O acompanhamento aparece na biblioteca e no rodapé do leitor.
+- Contagem de páginas após tempo de leitura ativa, reconhecimento de capítulos e ajuste manual dos totais do dia.
+- Registros locais dos últimos 31 dias e migração aditiva do catálogo existente.
+- Testes de contagem, virada do dia, persistência, conclusão e compatibilidade com dados anteriores.
+
+## 1.6.0
+
+- Ajustes rápidos de brilho e tela quente na barra de leitura, sincronizados com as preferências.
+- Tela cheia com barras que deslizam para fora e reaparecem ao aproximar o mouse das bordas.
+- Controles revelados sobre o PDF, sem alterar a posição da leitura; suporte a teclado e movimento reduzido.
+- Remoção do modo foco e do atalho F8. F11 alterna a tela cheia; Esc fecha o ajuste ou a busca antes de sair.
+- Testes de interface sem janela, com perfil isolado e verificação das preferências após reiniciar o navegador.
+
+## 1.5.0
+
+- Aberturas de capítulos em uma nova tela no Kindle, com título e texto inicial juntos.
+- Reconhecimento das páginas pelo sumário e por cabeçalhos explícitos de capítulo.
+- Avanço preserva o final do capítulo anterior; retorno, zoom e retomada mantêm a navegação.
+- Preferência independente para ativar ou desativar a separação de capítulos.
+
+## 1.4.0
+
+- Junção automática de páginas no modo Kindle, reduzindo margens internas vazias.
+- Preferência para manter as margens originais, sem modificar os PDFs.
+- Recorte preserva texto, rodapés, imagens, busca, seleção e coordenadas de retomada.
+- Análise sob demanda e cache limitado, sem rasterizar o documento inteiro.
+
 ## 1.3.0
 
 - Nome público Fólio, preservando identidade, executável, catálogo e chave de

@@ -131,7 +131,8 @@ try {
     await page.waitForFunction(() => document.querySelector('#reader-loading').hidden);
     assert.equal(await page.locator('#page-number').inputValue(), '7');
     assert.equal(await page.locator('#zoom').inputValue(), '1.25');
-    await click('#sidebar-toggle');
+    // The sidebar is remembered: saving the note opened it, so it may already be open.
+    if (await page.locator('#reader-sidebar').isHidden()) await click('#sidebar-toggle');
     await click('[data-tab="notes"]');
     assert.match(await page.locator('#sidebar-content').textContent(), /Uma ideia importante/);
     await click('#sidebar-toggle');
@@ -211,12 +212,8 @@ try {
       heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null,
     }));
     assert.ok(metrics.activeCanvases <= 12, JSON.stringify(metrics));
-    await click('#focus');
-    assert.equal(
-      await page.locator('body').evaluate((e) => e.classList.contains('focus-mode')),
-      true,
-    );
-    await click('#exit-focus');
+    assert.equal(await page.locator('#focus, #exit-focus').count(), 0);
+    assert.equal(await page.locator('#reading-brightness, #reading-warm').count(), 2);
     await click('#back');
     return metrics;
   });
@@ -253,6 +250,8 @@ try {
     await page.waitForFunction(() =>
       /possível abrir/.test(document.querySelector('#toast').textContent),
     );
+    // An error stays until it is closed, and it would cover the library in the next test.
+    await page.locator('#toast .toast-close').last().click();
   });
   await test('Layout em janela minima de 800 px', async () => {
     await page.setViewportSize({ width: 800, height: 600 });

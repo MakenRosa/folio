@@ -94,6 +94,9 @@ try {
           paper: 'light',
           warm: 0,
           brightness: 100,
+          // This suite exercises continuous screen turning; chapter separation
+          // has its own coverage and can be disabled independently.
+          chapterBreaks: false,
           resume: true,
           view: 'grid',
           sort: 'recent',
@@ -195,7 +198,7 @@ try {
     await settle();
     assert.ok(Math.abs((await metrics()).top - before.top) < 2);
   });
-  await test('Zoom, horizontal panning, focus, fullscreen and resize keep screen turns bounded', async () => {
+  await test('Zoom, horizontal panning, fullscreen and resize keep screen turns bounded', async () => {
     await page.locator('#zoom').selectOption('3');
     await settle();
     let a = await metrics();
@@ -212,13 +215,6 @@ try {
     let b = await metrics();
     assert.ok(b.top - a.top > 0 && b.top - a.top < a.height);
     await page.locator('#zoom').selectOption('1');
-    await click('#focus');
-    await settle();
-    a = await metrics();
-    await key('PageDown');
-    b = await metrics();
-    assert.ok(b.top - a.top > 0 && b.top - a.top < a.height);
-    await click('#exit-focus');
     await api('plugin:window|set_fullscreen', { label: 'main', value: true });
     await settle();
     a = await metrics();

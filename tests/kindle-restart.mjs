@@ -20,6 +20,24 @@ if (process.argv[2] === 'prepare') {
   const book = snapshot.books.find((b) => b.title === 'Caderno de leitura');
   assert.ok(book);
   await open(book.id);
+  await page.locator('#reader-goal').click();
+  await page.locator('#goal-mode').selectOption('custom');
+  await page.locator('#goal-unit').selectOption('pages');
+  await page.locator('#goal-target').fill('15');
+  await page.locator('#goal-save').click();
+  await page.waitForFunction(() => !document.querySelector('#dialog').open);
+  await page.locator('#reader-goal').click();
+  await page.locator('.goal-adjust summary').click();
+  await page.locator('#goal-pages').fill('4');
+  await page.locator('#goal-chapters').fill('1');
+  await page.locator('#goal-log-save').click();
+  await page.waitForFunction(() => !document.querySelector('.goal-adjust').open);
+  await page.locator('#goals-close').click();
+  await page.locator('#finish-reading').click();
+  await page.waitForFunction(
+    () => document.querySelector('#finish-reading').getAttribute('aria-pressed') === 'true',
+  );
+  const updated = (await api('library_list')).books.find((b) => b.id === book.id);
   if ((await page.locator('#kindle-toggle').getAttribute('aria-pressed')) !== 'true')
     await page.locator('#kindle-toggle').click();
   await page.locator('#zoom').selectOption('1.25');
@@ -30,13 +48,27 @@ if (process.argv[2] === 'prepare') {
   await page.locator('#next').click();
   await writeFile(
     'test-results/kindle/restart-expected.json',
-    JSON.stringify({ book: book.id, prefs, position: await position() }),
+    JSON.stringify({
+      book: book.id,
+      prefs,
+      position: await position(),
+      readingGoal: updated.readingGoal,
+      readingDays: updated.readingDays,
+      goalHistory: updated.goalHistory,
+    }),
   );
   console.log('Prepared Kindle position; closing before the save debounce.');
 } else {
   const expected = JSON.parse(await readFile('test-results/kindle/restart-expected.json', 'utf8'));
   await open(expected.book);
   const actual = await position();
+  const persisted = (await api('library_list')).books.find((b) => b.id === expected.book);
+  assert.deepEqual(persisted.readingGoal, expected.readingGoal);
+  assert.deepEqual(persisted.readingDays, expected.readingDays);
+  assert.deepEqual(persisted.goalHistory, expected.goalHistory);
+  assert.equal(persisted.finished, true);
+  assert.equal(await page.locator('#finish-reading').textContent(), 'Concluído');
+  assert.match(await page.locator('#reader-goal').textContent(), /4 \/ 15 páginas/);
   assert.equal(actual.mode, 'kindle');
   assert.ok(
     Math.abs(actual.top - expected.position.top) < 3,
@@ -44,6 +76,11 @@ if (process.argv[2] === 'prepare') {
   );
   await page.locator('#back').click();
   await page.waitForFunction(() => document.activeElement?.id === 'library-search');
+  await page.locator('#reading-history').click();
+  await page.locator('#history-scope').selectOption(expected.book);
+  assert.match(await page.locator('.history-day-totals').textContent(), /4 páginas1 capítulo/);
+  assert.match(await page.locator('.history-detail').textContent(), /4 \/ 15 páginas/);
+  await page.locator('#history-close').click();
   await page.evaluate(
     (p) =>
       p === null
@@ -55,7 +92,10 @@ if (process.argv[2] === 'prepare') {
     'test-results/kindle/restart.json',
     JSON.stringify({ passed: true, expected: expected.position, actual }, null, 2),
   );
-  console.log('PASS Kindle mode and exact position survived a real process restart.', actual);
+  console.log(
+    'PASS Kindle, position, completion, daily goal and totals survived a real process restart.',
+    actual,
+  );
 }
 try {
   await api('plugin:window|close', { label: 'main' });

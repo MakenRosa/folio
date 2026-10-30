@@ -214,8 +214,12 @@ kbd {
   height: 100vh;
   display: grid;
   grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 .library-sidebar {
+  grid-row: 1 / span 2;
+  min-height: 0;
+  overflow-y: auto;
   background: var(--sidebar);
   padding: 30px 16px 19px;
   border-right: 1px solid var(--line);
@@ -253,6 +257,8 @@ kbd {
   margin-top: 1px;
 }
 .add-button {
+  position: relative;
+  overflow: hidden;
   padding: 11px 12px;
   gap: 7px;
   font-size: 12px;
@@ -260,6 +266,49 @@ kbd {
 }
 .add-button svg {
   width: 17px;
+}
+.add-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* While the PDFs are copied the button says how far it is, and stays on, not dimmed like a
+   button that does nothing. The bar is as wide as the part that is done. */
+.add-button[aria-busy='true']:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+.add-button[aria-busy='true'] > svg,
+.add-button[aria-busy='true'] > kbd {
+  display: none;
+}
+.add-bar {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+.add-bar i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transform-origin: left;
+  transform: scaleX(var(--import-progress, 0));
+  transition: transform 0.2s ease-out;
+}
+/* A quiet second way in, under the button: a whole folder, with its subfolders. */
+.add-folder {
+  align-self: flex-start;
+  margin: 4px 0 0 6px;
+  padding: 5px 8px;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.add-folder svg {
+  width: 14px;
+  height: 14px;
 }
 .add-button kbd {
   margin-left: auto;
@@ -322,6 +371,8 @@ kbd {
   margin: 7px 0 0 11px;
 }
 .library-main {
+  grid-column: 2;
+  grid-row: 1;
   overflow: auto;
   scrollbar-gutter: stable;
 }
@@ -621,6 +672,14 @@ kbd {
 .book-info p span {
   padding: 0 4px;
 }
+/* The author, under the title. The room on the right is the one the card's buttons take. */
+.book-info .book-author {
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 56px;
+}
 .book-state {
   font-size: 9px;
   color: var(--muted);
@@ -681,6 +740,16 @@ kbd {
   border-bottom: 1px solid var(--line);
   padding: 12px 0;
   contain-intrinsic-size: auto 100px;
+  transition: background 0.4s;
+}
+/* The card that "Mostrar" took the reader to, for a moment. The ring is inside the cover: the
+   card clips what is drawn outside it. */
+.book-card.revealed .book-cover {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.book-list .book-card.revealed {
+  background: var(--soft);
 }
 .book-list .book-open {
   display: flex;
@@ -719,6 +788,11 @@ kbd {
 }
 .book-list .book-info p {
   margin-bottom: 6px;
+}
+.book-list .book-info .book-author {
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
 }
 .book-list .progress-track {
   max-width: 160px;
@@ -796,16 +870,447 @@ kbd {
 .empty-state > .primary {
   margin-top: 25px;
 }
+.empty-state > .text-button {
+  margin-top: 10px;
+}
 .empty-state > small {
   font-size: 10px;
   color: var(--muted);
   margin-top: 12px;
 }
+/* Tags in the side bar: a list that scrolls by itself, so that the buttons under it stay in reach. */
+.tag-section .nav-label {
+  padding-top: 24px;
+}
+#tag-nav {
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.tag-item {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.tag-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The scrolling list would cut the outline of the focus, so it is drawn inside the button. */
+.tag-item:focus-visible {
+  outline-offset: -2px;
+}
+/* A card is ticked with Ctrl or Shift + click, or with its box. The box shows when the pointer or
+   the focus is on the card, and on every card as soon as one is ticked. */
+.book-card {
+  user-select: none;
+}
+.select-check {
+  appearance: none;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--muted);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 1px 4px #0003;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.select-check::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--panel);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.1s;
+}
+.select-check:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.select-check:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+.book-card:hover .select-check,
+.book-card:focus-within .select-check,
+.selecting .select-check,
+.select-check:checked,
+.select-check:focus-visible {
+  opacity: 1;
+}
+.book-card.selected .book-cover {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.book-list .book-card {
+  padding-left: 34px;
+}
+.book-list .book-card.selected {
+  background: var(--soft);
+}
+.book-list .select-check {
+  top: 50%;
+  left: 6px;
+  margin-top: -11px;
+}
+/* In Removidos the cover opens nothing: the click goes through to the card, which can be ticked. */
+.book-open:disabled {
+  pointer-events: none;
+}
+.book-list .book-card:has([data-restore]) .book-open {
+  padding-right: 120px;
+}
+/* A card of Removidos has a wider pair of buttons: in the grid they go under the card, and the
+   title keeps its whole width. */
+.book-grid .book-card:has([data-restore]) .card-actions {
+  position: static;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+.book-grid .book-card:has([data-restore]) .book-info h3,
+.book-grid .book-card:has([data-restore]) .book-info .book-author,
+.book-grid .book-card:has([data-restore]) .book-info .book-tags {
+  padding-right: 0;
+}
+/* The tags of a card, and where a search found it: one discreet line each. */
+.book-info .book-tags,
+.book-info .book-found {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+}
+.book-info .book-tags {
+  padding-right: 56px;
+}
+.book-info .book-found {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.book-found svg {
+  width: 11px;
+  height: 11px;
+}
+.book-list .book-info .book-tags,
+.book-list .book-info .book-found {
+  padding: 0;
+  font-size: 11px;
+}
+/* The bar of the selection sits under the list, in the column of the library, so that it never
+   covers a card. The messages go above it while it is there. */
+.selection-bar {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 42px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -10px 28px #233c2314;
+}
+:root[data-theme='dark'] .selection-bar {
+  box-shadow: 0 -10px 28px #0004;
+}
+.selection-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.selection-action {
+  padding: 7px 11px;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.selection-action svg {
+  width: 16px;
+  height: 16px;
+}
+.selection-action.danger {
+  color: var(--danger);
+}
+:root[data-selecting] #toast {
+  bottom: 84px;
+}
+@media (max-width: 1100px) {
+  .selection-bar {
+    padding: 9px 28px;
+  }
+  /* Only the icon, then: the name is the tooltip and the accessible name of the button. */
+  .selection-action span {
+    display: none;
+  }
+  .selection-action {
+    padding: 8px;
+  }
+}
+@media (max-width: 900px) {
+  .selection-bar {
+    padding: 9px 23px;
+  }
+}
+/* The top of Removidos: what is there and the way to empty it. */
+.trash-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.trash-bar .secondary {
+  padding: 8px 13px;
+  font-size: 12px;
+}
+.trash-bar .secondary svg {
+  width: 15px;
+  height: 15px;
+}
+/* A button that destroys: the red of the interface, with text that reads on it in both themes. */
+.danger-button {
+  background: var(--danger);
+  color: #fff;
+}
+.primary.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+}
+:root[data-theme='dark'] .primary.danger-button {
+  color: #2a1311;
+}
+:root[data-theme='dark'] .primary.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 86%, #fff);
+}
+/* The tags of a document, and the question before a document is deleted for good. */
+dialog .tag-owner {
+  margin: -6px 0 10px;
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-entry {
+  display: flex;
+  gap: 8px;
+}
+.tag-entry .text-field {
+  flex: 1;
+}
+.tag-entry .secondary {
+  padding: 9px 14px;
+  font-size: 12px;
+}
+dialog .tag-hint {
+  min-height: 20px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--danger);
+}
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 2px 2px 11px;
+  font-size: 12px;
+  background: var(--soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 999px;
+}
+.tag-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-chip button {
+  width: 22px;
+  height: 22px;
+  padding: 5px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+.tag-chip button svg {
+  width: 12px;
+  height: 12px;
+}
+.tag-chips-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-suggestion {
+  padding: 4px 11px;
+  gap: 6px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.tag-suggestion small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.purge-notes {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.purge-notes li + li {
+  margin-top: 4px;
+}
+dialog p strong {
+  color: var(--text);
+}
+#popover button.danger {
+  color: var(--danger);
+}
+#popover button.danger svg {
+  color: inherit;
+}
 #reader {
+  position: relative;
   height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--reader);
+}
+.reader-top {
+  flex-shrink: 0;
+  z-index: 30;
+}
+.reader-fullscreen .reader-top,
+.reader-fullscreen .reader-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  transition: transform 180ms ease;
+  box-shadow: var(--shadow);
+}
+.reader-fullscreen .reader-top {
+  top: 0;
+  transform: translateY(-100%);
+}
+.reader-fullscreen .reader-footer {
+  bottom: 0;
+  transform: translateY(100%);
+}
+.reader-fullscreen.reader-top-visible .reader-top,
+.reader-fullscreen.reader-bottom-visible .reader-footer {
+  transform: translateY(0);
+}
+.reading-quick {
+  height: 32px;
+  padding: 0 9px;
+  gap: 5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.reading-quick svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.reading-quick.selected {
+  color: var(--accent);
+  background: var(--soft);
+}
+.reading-control {
+  padding: 8px;
+}
+.reading-control-heading,
+.reading-control-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.reading-control-heading label {
+  font-size: 12px;
+  font-weight: 600;
+}
+#popover #quick-close {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+}
+.reading-control-value {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+#quick-value {
+  color: var(--text);
+  font-weight: 600;
+}
+#quick-range {
+  width: 100%;
+}
+#popover #quick-reset {
+  margin-top: 10px;
+  font-size: 10px;
+}
+@media (max-width: 1100px) {
+  .reading-quick .quick-name {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .reading-quick {
+    width: 28px;
+    padding: 0;
+  }
+  .reading-quick span {
+    display: none;
+  }
 }
 .reader-header {
   height: 57px;
@@ -925,6 +1430,17 @@ kbd {
   box-shadow: 0 2px 9px #0002;
   overflow: visible !important;
 }
+/* Two pages side by side: PDF.js groups each pair in a .spread. "Page width" leaves
+   40px around the pair; the pair's own margins and the narrower padding fit in it. */
+#viewer-container[data-spread] #pdf-viewer {
+  padding-inline: 10px;
+}
+.pdfViewer .spread {
+  margin-inline: 0;
+}
+.pdfViewer .spread .page {
+  margin: 0 4px 20px !important;
+}
 .pdfViewer .canvasWrapper {
   overflow: hidden;
 }
@@ -955,6 +1471,86 @@ kbd {
   z-index: 5;
   opacity: 0;
 }
+/* The way back after a jump floats over the reading surface, above the brightness and warm
+   layers, so that it never moves the PDF. The colours are the message's, inverted to the page
+   (dark on the light theme, light on the dark one), with an edge that keeps it apart from a
+   page of the same colour: the dark paper, or the sepia one. The way forward is quieter. */
+.jump-pill {
+  --pill-bg: var(--text);
+  --pill-fg: var(--panel);
+  position: absolute;
+  z-index: 8;
+  right: 22px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 44px);
+  padding: 3px;
+  color: var(--pill-fg);
+  background: var(--pill-bg);
+  border: 1px solid color-mix(in srgb, var(--pill-fg) 40%, transparent);
+  border-radius: 999px;
+  box-shadow:
+    0 2px 10px #0004,
+    var(--shadow);
+  font-size: 12px;
+  animation: jump-pill-in 0.16s ease-out;
+}
+.jump-pill[data-side='forward'] {
+  --pill-bg: var(--panel);
+  --pill-fg: var(--text);
+  font-size: 11px;
+}
+@keyframes jump-pill-in {
+  from {
+    opacity: 0;
+  }
+}
+.jump-pill button {
+  min-width: 0;
+  height: 28px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
+  border-radius: 999px;
+}
+.jump-pill button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.jump-pill button:focus-visible {
+  outline-color: currentColor;
+  outline-offset: 1px;
+}
+.jump-pill svg {
+  width: 15px;
+  height: 15px;
+}
+.jump-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jump-pill .jump-dismiss {
+  width: 28px;
+  padding: 0;
+  opacity: 0.75;
+}
+.jump-pill .jump-dismiss:hover:not(:disabled),
+.jump-pill .jump-dismiss:focus-visible {
+  opacity: 1;
+}
+.jump-pill .jump-dismiss svg {
+  width: 13px;
+  height: 13px;
+}
+/* In the full screen the bottom bar comes over the reading surface when the pointer reaches the
+   edge: the pill stays above the strip that calls it, so that the two never fight for the pointer. */
+.reader-fullscreen .jump-pill {
+  bottom: 52px;
+}
 .reader-footer {
   height: 31px;
   flex-shrink: 0;
@@ -975,30 +1571,36 @@ kbd {
 .reader-footer .text-button svg {
   height: 13px;
 }
+/* The width is the user's, from the preferences (--sidebar-width). The window caps it at
+   40%, so that the PDF keeps most of the screen even at the smallest window. The bar
+   itself does not scroll: its list does, and the tabs and the drag handle stay put. */
 #reader-sidebar {
-  width: 260px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--sidebar-width, 260px), 40vw);
   flex-shrink: 0;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  overflow: auto;
 }
 .side-tabs {
   display: flex;
   align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  flex-shrink: 0;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
-  padding: 10px 9px;
-  gap: 3px;
+  padding: 10px 6px;
+  gap: 2px;
 }
 .side-tabs button {
   flex: 1;
+  min-width: 0;
   font-size: 11px;
-  padding: 8px 9px;
+  padding: 8px 2px;
   border-radius: 5px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .side-tabs .active {
   color: var(--accent);
@@ -1006,16 +1608,130 @@ kbd {
   font-weight: 600;
 }
 #sidebar-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   padding: 12px 0;
 }
+#sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  z-index: 12;
+  cursor: col-resize;
+  touch-action: none;
+}
+#sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.12s;
+}
+#sidebar-resizer:hover::after,
+#sidebar-resizer.dragging::after {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+#sidebar-resizer:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+#sidebar-resizer:focus-visible::after {
+  background: var(--accent);
+}
+.outline-tree,
+.outline-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.outline-line {
+  display: flex;
+  align-items: stretch;
+  padding-right: 8px;
+}
+.outline-toggle,
+.outline-spacer {
+  flex: none;
+  width: 24px;
+}
+.outline-toggle {
+  padding: 0;
+  color: var(--muted);
+}
+.outline-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.12s;
+}
+.outline-toggle[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
 .outline-item {
+  flex: 1;
+  min-width: 0;
   text-align: left;
   justify-content: flex-start;
   white-space: normal;
-  width: 100%;
+  overflow-wrap: anywhere;
   font-size: 11px;
   line-height: 1.6;
-  padding: 9px 15px;
+  padding: 8px 8px 8px 4px;
+}
+/* The section being read: weight and a bar as well as color, for both themes. */
+.outline-item[aria-current='true'] {
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.thumb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+}
+.thumb {
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 0 8px;
+  scroll-margin: 6px 0;
+  border-radius: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.thumb-frame {
+  display: block;
+  width: 130px;
+  background: var(--soft);
+  box-shadow: 0 1px 5px #0003;
+  overflow: hidden;
+}
+.thumb-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+:root[data-paper='dark'] .thumb-frame canvas {
+  filter: invert(0.91) hue-rotate(180deg);
+}
+:root[data-paper='sepia'] .thumb-frame canvas {
+  filter: sepia(0.45) brightness(0.97);
+}
+.thumb.current {
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.thumb.current .thumb-frame {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 .side-empty {
   padding: 35px 25px;
@@ -1027,6 +1743,10 @@ kbd {
 .side-empty > svg {
   width: 25px;
   height: 25px;
+  margin: 10px;
+}
+.side-empty .spinner {
+  display: inline-block;
   margin: 10px;
 }
 .side-empty h3 {
@@ -1141,33 +1861,6 @@ kbd {
   to {
     transform: rotate(360deg);
   }
-}
-.focus-mode .reader-header,
-.focus-mode .reader-toolbar,
-.focus-mode .reader-footer,
-.focus-mode #reader-sidebar,
-.focus-mode #find-bar {
-  display: none !important;
-}
-.floating-button {
-  position: absolute;
-  right: 22px;
-  top: 16px;
-  z-index: 20;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  padding: 9px 12px;
-  font-size: 11px;
-  opacity: 0.3;
-}
-.floating-button:hover,
-.floating-button:focus {
-  opacity: 1;
-}
-.floating-button svg {
-  width: 15px;
-  height: 15px;
 }
 dialog {
   border: 1px solid var(--line);
@@ -1458,15 +2151,37 @@ input[type='range'] {
   overflow-wrap: anywhere;
   padding-left: 20px;
 }
+/* The original text of an error, one click away. */
+.error-detail {
+  margin: 12px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.error-detail summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.error-detail p {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 #popover {
   position: fixed;
-  z-index: 50;
+  /* Above the toasts: a menu the reader has just opened must not hide behind a notice. */
+  z-index: 110;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 6px;
   box-shadow: var(--shadow);
   width: 248px;
+  /* Placed by popover(): inside the window, under the button or above it. These limits are
+     only the last resort, and the inline height is what scrolls it when nothing else fits. */
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 #popover button {
   display: flex;
@@ -1483,6 +2198,11 @@ input[type='range'] {
   height: 16px;
   color: var(--muted);
 }
+/* The outline of the page would be cut by the scrolling panel, so the item marks itself inside. */
+#popover [role='menuitem']:focus-visible {
+  background: var(--soft);
+  outline-offset: -2px;
+}
 #popover hr {
   border: 0;
   border-top: 1px solid var(--line);
@@ -1494,29 +2214,102 @@ input[type='range'] {
   bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
+  /* The messages pile up, the newest nearest the edge. The gaps between them let the clicks through. */
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 50px);
+  pointer-events: none;
+  /* The red of an error, on the dark message of the light theme and on the light one of the dark. */
+  --toast-danger: #f2a7a0;
+}
+:root[data-theme='dark'] #toast {
+  --toast-danger: #a0443d;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  max-width: 100%;
   background: var(--text);
   color: var(--panel);
   border-radius: 8px;
-  padding: 13px 18px;
+  padding: 7px 8px 7px 16px;
   font-size: 12px;
+  line-height: 1.45;
   box-shadow: var(--shadow);
-  max-width: calc(100vw - 50px);
+  animation: toast-in 0.18s ease-out;
+  transition:
+    opacity 0.14s,
+    transform 0.14s;
 }
-#toast span {
+.toast[data-kind='error'] {
+  padding-left: 19px;
+  box-shadow:
+    inset 3px 0 0 var(--toast-danger),
+    var(--shadow);
+}
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(6px);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.toast-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 0;
   overflow-wrap: anywhere;
 }
-#toast button {
+.toast button {
   font-size: 11px;
   font-weight: 600;
   color: inherit;
-  padding: 5px 8px;
-  border: 1px solid #ffffff30;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
 }
-#toast button:hover {
-  background: #ffffff20;
+.toast button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+/* The accent of the page is too faint on the dark message. */
+.toast button:focus-visible {
+  outline-color: currentColor;
+  outline-offset: 2px;
+}
+.toast .toast-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-color: transparent;
+}
+.toast .toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+.toast-detail {
+  flex: 1 0 100%;
+  max-height: 5.8em;
+  margin: 0 8px 5px 0;
+  padding: 7px 9px;
+  overflow: auto;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 6px;
+  font:
+    11px/1.45 ui-monospace,
+    'Cascadia Mono',
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 #drop-overlay {
   position: fixed;
@@ -1622,9 +2415,6 @@ input[type='range'] {
     padding: 0 11px;
     gap: 8px;
   }
-  #reader-sidebar {
-    width: 235px;
-  }
 }
 @media (max-width: 900px) {
   .library-shell {
@@ -1717,9 +2507,6 @@ input[type='range'] {
   #zoom {
     max-width: 123px;
   }
-  .reader-toolbar #fullscreen {
-    display: none;
-  }
   .reader-header #restart {
     font-size: 9px;
   }
@@ -1728,9 +2515,6 @@ input[type='range'] {
   }
   #page-total {
     padding: 0 3px;
-  }
-  #reader-sidebar {
-    width: 220px;
   }
   .reader-footer {
     padding: 0 15px;
@@ -1744,7 +2528,9 @@ input[type='range'] {
     transition: none !important;
     scroll-behavior: auto !important;
   }
-  .spinner {
+  .spinner,
+  .toast,
+  .jump-pill {
     animation: none;
   }
 }
@@ -1825,7 +2611,7 @@ input[type='range'] {
 }
 #viewer-container[data-reading-mode='kindle'] #pdf-viewer {
   padding-top: 0;
-  padding-bottom: 0;
+  padding-bottom: var(--chapter-end-padding, 0px);
 }
 #viewer-container[data-reading-mode='kindle'] .page {
   margin-bottom: 0 !important;
@@ -1846,11 +2632,292 @@ input[type='range'] {
   background: var(--soft);
   border-color: var(--accent);
 }
+.library-goal {
+  display: block;
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent);
+  font-size: 12px;
+  text-align: left;
+}
+.goal-status {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  margin: 20px 0;
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--accent);
+}
+.goal-status progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+.goal-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.goal-fields > div {
+  min-width: 0;
+}
+.goal-fields .text-field,
+#goal-scope,
+#goal-mode,
+#goal-log-book {
+  max-width: 100%;
+  width: 100%;
+}
+.goal-adjust {
+  border-top: 1px solid var(--line);
+  padding: 18px 0;
+  margin-top: 20px;
+}
+.goal-rules {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+dialog:has(.history-view) {
+  width: 720px;
+}
+.history-view .field-label {
+  margin-top: 12px;
+}
+.history-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+}
+.history-controls {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+.history-controls > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.history-controls select {
+  width: 100%;
+  max-width: 100%;
+}
+.history-view .dialog-heading {
+  position: sticky;
+  top: -28px;
+  background: var(--panel);
+  padding: 10px 0;
+  z-index: 1;
+  margin-bottom: 8px;
+}
+.history-month input {
+  width: 210px;
+  text-align: center;
+}
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.history-stats > div {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border-radius: 9px;
+  background: var(--soft);
+}
+.history-stats strong {
+  font-size: 22px;
+  color: var(--accent);
+}
+.history-stats span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.history-week,
+.history-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+.history-week {
+  margin-bottom: 7px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.history-day {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px 5px;
+  min-height: 62px;
+  align-items: stretch;
+  justify-content: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  text-align: left;
+  background: var(--panel);
+  font-size: 12px;
+}
+.history-day > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+}
+.history-day > span,
+.history-day small {
+  font-size: 9px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.history-day.met {
+  background: var(--soft);
+}
+.history-day.met small {
+  color: var(--accent);
+  font-weight: 600;
+}
+.history-day.missed {
+  border-bottom: 3px solid #ad8251;
+}
+.history-day.ongoing {
+  border-bottom: 3px solid var(--accent);
+}
+.history-day[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.history-day.future {
+  opacity: 0.35;
+}
+.history-today {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--accent);
+}
+.history-detail {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 18px;
+}
+.history-detail-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.history-detail h3 {
+  font-size: 14px;
+}
+.history-status {
+  font-size: 11px;
+  color: var(--muted);
+}
+.history-status.met {
+  color: var(--accent);
+  font-weight: 600;
+}
+.history-day-totals {
+  display: flex;
+  gap: 20px;
+  font-size: 14px;
+  margin: 14px 0;
+}
+.history-books {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.history-books li {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.history-books li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.history-books li > span:last-child {
+  white-space: nowrap;
+  color: var(--muted);
+}
+.goal-rules summary,
+.goal-adjust summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.goal-adjust .secondary {
+  margin-top: 16px;
+}
+#reader-goal {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 40%;
+  color: var(--accent);
+}
+.reader-footer > .text-button {
+  flex-shrink: 0;
+}
+.reading-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+#reading-progress {
+  flex: none;
+  white-space: nowrap;
+}
+/* The estimate yields first, so it never pushes the goal or the note button. */
+#reading-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#reading-time::before {
+  content: '·';
+  margin-right: 6px;
+}
+@media (max-width: 1100px) {
+  .reader-header #restart {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  .reader-footer #reading-label {
+    display: none;
+  }
+}
 .mode-description {
   font-size: 11px;
   line-height: 1.7;
   color: var(--muted);
   margin-top: 10px;
+}
+#pref-spread-row {
+  margin-top: 18px;
+  padding-bottom: 0;
+}
+#pref-spread-row select {
+  flex-shrink: 0;
+}
+#pref-spread:disabled {
+  opacity: 0.5;
 }
 @media (max-width: 900px) {
   .reading-mode-button {
@@ -1859,5 +2926,304 @@ input[type='range'] {
   }
   .reading-mode-button svg {
     display: none;
+  }
+}
+
+/* Highlights and notes in the text. The four colours: a solid one for swatches and menus, one that
+   is multiplied over the light and the sepia paper (the text stays as dark as it was), and one
+   for the dark paper, which is the page with its colours inverted: there a multiplied colour would
+   turn black, so the mark is a translucent light over it. */
+:root {
+  --hl-yellow: #ffe45c;
+  --hl-green: #9fe5ae;
+  --hl-blue: #9bcdfd;
+  --hl-pink: #ffadcb;
+  --hl-yellow-night: rgb(255 214 10 / 0.34);
+  --hl-green-night: rgb(76 217 100 / 0.3);
+  --hl-blue-night: rgb(80 170 255 / 0.36);
+  --hl-pink-night: rgb(255 105 160 / 0.36);
+}
+[data-color='yellow'] {
+  --sw: var(--hl-yellow);
+  --mark-night: var(--hl-yellow-night);
+  --pin: #f2c200;
+}
+[data-color='green'] {
+  --sw: var(--hl-green);
+  --mark-night: var(--hl-green-night);
+  --pin: #3fae63;
+}
+[data-color='blue'] {
+  --sw: var(--hl-blue);
+  --mark-night: var(--hl-blue-night);
+  --pin: #3a8fe0;
+}
+[data-color='pink'] {
+  --sw: var(--hl-pink);
+  --mark-night: var(--hl-pink-night);
+  --pin: #e0568f;
+}
+/* One layer for each page, inside the page of PDF.js and above its text. It ignores the pointer, so
+   that the text can be selected and the links followed; only the marks of notes are buttons. The
+   layer itself makes no stacking context: the blend of the marks needs the page behind them. */
+.note-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.note-marks {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: multiply;
+}
+.note-mark {
+  position: absolute;
+  border-radius: 2px;
+  background: var(--sw);
+}
+:root[data-paper='dark'] .note-marks {
+  mix-blend-mode: normal;
+}
+:root[data-paper='dark'] .note-mark {
+  background: var(--mark-night);
+}
+/* The highlight that a jump arrived at, for a moment. */
+.note-mark[data-flash] {
+  outline: 2px solid #2f7bd9;
+  outline-offset: 1px;
+  animation: note-flash 1.8s ease-out forwards;
+}
+@keyframes note-flash {
+  60% {
+    outline-color: #2f7bd9;
+  }
+  to {
+    outline-color: transparent;
+  }
+}
+.note-pins {
+  position: absolute;
+  inset: 0;
+}
+/* The mark of a note with text: in the right margin, at the height of the first line. */
+.note-pin {
+  position: absolute;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: #1b1b1b;
+  background: var(--pin);
+  border: 1px solid #fff9;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px #0004;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.note-pin:hover:not(:disabled) {
+  background: var(--pin);
+  transform: translateY(-50%) scale(1.14);
+}
+.note-pin:focus-visible {
+  outline: 2px solid #2f7bd9;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #fffc;
+}
+.note-pin svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+}
+#viewer-container[data-note-hover] .textLayer,
+#viewer-container[data-note-hover] .textLayer :is(span, br) {
+  cursor: pointer;
+}
+/* The bar near the end of a selection. */
+.highlight-bar {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  max-width: calc(100vw - 16px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 16px #0003,
+    var(--shadow);
+  animation: jump-pill-in 0.12s ease-out;
+}
+.hl-group {
+  display: flex;
+  gap: 1px;
+}
+.hl-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+.hl-swatch > span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+}
+/* The colour that the shortcut uses, and the colour of the highlight in its menu. */
+.hl-swatch[data-last] > span,
+.hl-swatch[data-current] > span {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 3.5px var(--text);
+}
+.hl-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line);
+}
+.hl-action {
+  height: 28px;
+  padding: 0 9px;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.hl-action svg {
+  width: 15px;
+  height: 15px;
+}
+#popover .menu-colors {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+}
+#popover .menu-colors .hl-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  justify-content: center;
+}
+/* The notes of the side bar. */
+.notes-search {
+  margin: 0 15px 8px;
+  height: 32px;
+}
+.notes-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 15px 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.notes-summary .text-button {
+  font-size: 10px;
+  padding: 4px 0;
+}
+.note-card[data-color] {
+  border-left: 3px solid var(--sw);
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: -4px -6px 0 0;
+}
+.note-head .note-page {
+  padding: 4px 0;
+  gap: 6px;
+  text-align: left;
+}
+.note-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+}
+.note-head .note-more {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+}
+.note-head .note-more svg {
+  width: 15px;
+  height: 15px;
+}
+.note-card blockquote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+.note-card p.note-kind {
+  margin: 8px 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* The choice of colour in the dialog of a note that is a highlight. */
+.color-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.color-field legend {
+  display: block;
+  padding: 0;
+}
+.color-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.color-choice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 7px;
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.color-choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.color-choice .swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+}
+.color-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.color-choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .highlight-bar,
+  .note-mark[data-flash] {
+    animation: none;
   }
 }

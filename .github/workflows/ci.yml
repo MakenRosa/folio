@@ -35,6 +35,9 @@ jobs:
       - run: python -m pip install -r requirements-test.txt
       - run: npm run build
       - run: npm run check
+      - run: npx playwright install chromium
+      - run: python scripts/fixtures.py
+      - run: npm run test:ui
       - run: npm run test:native
       - run: npm run package:source
       - name: Test evidence from the isolated CI library
@@ -49,3 +52,9 @@ jobs:
             test-results/brightness/results.json
             test-results/kindle/results.json
             test-results/kindle/restart.json
+            test-results/joined-pages/results.json
+            test-results/chapters/results.json
+            test-results/reader-chrome/results.json
+            test-results/spread/results.json
+            test-results/sidebar/results.json
+            test-results/reader-chrome/*.png

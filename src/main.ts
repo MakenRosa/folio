@@ -1,48 +1,209 @@
 import './style.css';
 import { icon } from './icons';
-import { $, esc, size, ib } from './ui/dom';
+import { $, documents, esc, size, ib } from './ui/dom';
 import { appShell } from './ui/shell';
-import { toast, fail, modal, popover, closePopover } from './ui/overlays';
-import { renderLibraryView } from './ui/library-view';
+import {
+  toast,
+  fail,
+  modal,
+  popover,
+  closePopover,
+  type PopoverOptions,
+  type ToastAction,
+} from './ui/overlays';
+import { GENERIC_ERROR, describeError } from './ui/error-text';
+import { showImportProgress, hideImportProgress } from './ui/import-progress';
+import { hasSeenHint, withHint, type HintId } from './hints';
+import {
+  renderLibraryView,
+  updateBookCard,
+  updateSelection,
+  revealBook,
+  keepLibraryView,
+} from './ui/library-view';
+import { showTags } from './ui/tags-dialog';
+import { confirmPurge } from './ui/purge-dialog';
 import { showPreferences } from './ui/preferences-dialog';
 import { showHelp } from './ui/help-dialog';
-import { bindShortcuts } from './ui/shortcuts';
+import { bindShortcuts, SPREAD_KINDLE_NOTE } from './ui/shortcuts';
+import { WorkQueue } from './library/queue';
+import { enrichBook } from './library/enrich';
+import { needsMetadata } from './library/metadata';
+import { ReaderChrome } from './ui/reader-chrome';
+import { JumpPill } from './ui/jump-pill';
+import { SelectionBar } from './ui/selection-bar';
+import { deleteLabel, noteMenu } from './ui/note-menu';
+import { renderNotes, type NotesState } from './ui/notes-panel';
+import { copyText } from './ui/clipboard';
+import { bindReadingComfort, syncReadingComfort } from './ui/reading-comfort';
+import { showGoals, goalLabel } from './ui/goals-dialog';
+import { showHistory } from './ui/history-dialog';
+import { OutlineView, type OutlineState } from './ui/outline-view';
+import { ThumbnailList } from './ui/thumbnail-list';
+import { bindSidebarResizer } from './ui/sidebar-resizer';
+import { archivedAsBook } from './library/archive';
+import { rangeIds } from './library/selection';
+import { MAX_TAGS, addTag, filterTag, hasTag, tagCounts, tagsOf } from './library/tags';
+import { rememberGoal } from './reading/history';
+import {
+  COLOR_LABELS,
+  NOTE_COLORS,
+  colorOf,
+  rememberColor,
+  rememberedColor,
+} from './reading/note-colors';
+import { isHighlight, noteRects } from './reading/note-rects';
+import type { SelectionCapture } from './reading/selection-capture';
+import {
+  ReadingActivity,
+  dayCount,
+  dayRecord,
+  effectiveGoal,
+  globalCount,
+  localDay,
+  withCredit,
+  withDay,
+} from './reading/goals';
+import { spreadPages } from './reading/spread';
+import { SIDEBAR_WIDTH, clampSidebarWidth, sidebarMax, tabAfterKey } from './reading/sidebar';
+import { readingProgress } from './reading/progress';
+import {
+  PaceTracker,
+  formatDuration,
+  recordPace,
+  remainingTime,
+  secondsPerPage,
+} from './reading/pace';
 import { invoke, asset } from './bridge';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
-import type { Book, Snapshot, Preferences, Note } from './types';
+import type {
+  Book,
+  ImportResult,
+  PurgeResult,
+  Snapshot,
+  Preferences,
+  Note,
+  NoteColor,
+  SidebarTab,
+  Spread,
+} from './types';
 import { loadPreferences, normalizePreferences, savePreferences } from './preferences';
 
 const prefs = loadPreferences(localStorage);
-let snapshot: Snapshot = { books: [], trash: [], folder: '', warning: null };
+const activity = new ReadingActivity();
+const pace = new PaceTracker();
+let goalDay = localDay();
+let finishPrompted = false;
+let snapshot: Snapshot = { books: [], trash: [], archived: [], folder: '', warning: null };
 let filter = 'all',
   query = '',
   busy = false,
   current: Book | null = null,
-  reader: import('./reader').Reader | null = null,
-  sideTab = 'outline';
+  reader: import('./reader').Reader | null = null;
+// The documents ticked in the library, and the one a Shift + click counts the range from. The
+// view takes out of the set what it no longer shows.
+const selected = new Set<string>();
+let anchor: string | null = null,
+  // A batch is one at a time: a second press while it runs does nothing.
+  batching = false;
 let loading = false,
   saveTimer: ReturnType<typeof setTimeout> | undefined,
   readingPatch: Partial<Book> = {},
   saveChain = Promise.resolve(),
-  resumePosition = false;
+  resumePosition = false,
+  // Closing the password dialog is a choice of the reader, not a failure to open the PDF.
+  passwordDeclined = false,
+  warned = '';
+// What the toolbar button and the L key turn on: the two-page layout last chosen.
+let pairLayout: Exclude<Spread, 'none'> = 'odd';
+// The side bar: what its current tab shows, and how the outline was folded by hand.
+let outlineView: OutlineView | null = null,
+  thumbnails: ThumbnailList | null = null,
+  renderedTab: SidebarTab | null = null,
+  shownInSidebar = '';
+const outlineState: OutlineState = { folds: new Map() };
+// The search of the Notas tab, kept while the book is open.
+const notesState: NotesState = { query: '' };
+// What the import leaves out (cover, page count, author, a title from the PDF) is read in the
+// background, one PDF at a time. It waits while a book is open, and goes on in the library.
+const enrichment = new WorkQueue((id, signal) =>
+  enrichBook(id, signal, {
+    find: (bookId) => snapshot.books.find((b) => b.id === bookId),
+    changed: bookEnriched,
+  }),
+);
+const waitingForMetadata = (books: Book[]) =>
+  books
+    .filter(needsMetadata)
+    .sort((a, b) => (b.lastOpened || b.added) - (a.lastOpened || a.added))
+    .map((b) => b.id);
 
 $('#app').innerHTML = appShell;
+const chrome = new ReaderChrome(
+  getCurrentWindow(),
+  () => !!current,
+  () => reader?.resize(),
+  fail,
+);
+// The way back after a jump, over the reading surface.
+const jumpPill = new JumpPill({
+  back: () => stepJump('back'),
+  forward: () => stepJump('forward'),
+});
+// The bar near the end of a passage that is selected in the pages: highlight, annotate, copy.
+const selectionBar = new SelectionBar({
+  bar: $('#highlight-bar'),
+  container: $('#viewer-container'),
+  enabled: () => !!current && !!reader && !loading && !$<HTMLDialogElement>('#dialog').open,
+  capture: () => reader?.captureSelection() ?? null,
+  highlight: (color) => void highlightSelection(color),
+  annotate: () => void annotateSelection(),
+  copy: () => void copySelection(),
+});
+bindReadingComfort(prefs, applyPrefs);
 function renderLibrary() {
+  // A tag that no document has any more is no filter: back to the whole library.
+  const tag = filterTag(filter);
+  if (tag !== null && !snapshot.books.some((b) => hasTag(b, tag))) filter = 'all';
   renderLibraryView(
-    { snapshot, filter, query, prefs },
-    { openBook, importFiles, toggleFavorite, bookMenu, restoreBook, applyPrefs },
+    { snapshot, filter, query, prefs, selected },
+    {
+      openBook,
+      importFiles,
+      importFolder,
+      toggleFavorite,
+      select: selectCard,
+      bookMenu,
+      restoreBook,
+      applyPrefs,
+    },
   );
+}
+// A book that the queue just completed: its card is drawn again where it is, and the whole list
+// only when the new title or author changes which cards are shown, or their order.
+function bookEnriched(updated: Book) {
+  const before = snapshot.books.find((b) => b.id === updated.id);
+  if (!before) return;
+  snapshot.books = snapshot.books.map((b) => (b.id === updated.id ? updated : b));
+  if (current?.id === updated.id) {
+    current = { ...current, title: updated.title, author: updated.author, cover: updated.cover };
+    updateReaderMeta();
+  }
+  if (!updateBookCard({ snapshot, filter, query, prefs, selected }, updated, before))
+    keepLibraryView(renderLibrary);
 }
 function preferences() {
   showPreferences(prefs, { folder: snapshot.folder, applyPrefs, setReadingMode });
 }
 function applyPrefs() {
   Object.assign(prefs, normalizePreferences(prefs));
-  reader?.setMode(prefs.readingMode);
+  reader?.setMode(prefs.readingMode, prefs.joinPages, prefs.chapterBreaks, prefs.spread);
   $('#kindle-toggle').setAttribute('aria-pressed', String(prefs.readingMode === 'kindle'));
   $('#kindle-toggle').classList.toggle('selected', prefs.readingMode === 'kindle');
+  syncSpreadToggle();
+  applySidebar();
   prefs.brightness =
     typeof prefs.brightness === 'number' && Number.isFinite(prefs.brightness)
       ? Math.min(100, Math.max(10, prefs.brightness))
@@ -57,26 +218,98 @@ function applyPrefs() {
   $('#warm-overlay').style.opacity = String(Math.min(70, Math.max(0, prefs.warm)) / 100);
   $('#brightness-overlay').style.opacity = String((100 - prefs.brightness) / 100);
   savePreferences(localStorage, prefs);
+  updateGoals();
+  syncReadingComfort(prefs);
   updateReaderMeta();
   $('#paper-toggle').classList.toggle('selected', prefs.paper === 'dark');
   $('#view-grid').classList.toggle('selected', prefs.view === 'grid');
   $('#view-list').classList.toggle('selected', prefs.view === 'list');
   $('#sort').setAttribute('value', prefs.sort);
 }
+// The Kindle needs one column: the button is off there, and the choice returns after it.
+function syncSpreadToggle() {
+  if (prefs.spread !== 'none') pairLayout = prefs.spread;
+  const kindle = prefs.readingMode === 'kindle',
+    on = !kindle && prefs.spread !== 'none',
+    label = kindle ? SPREAD_KINDLE_NOTE : 'Duas páginas lado a lado (L)';
+  const button = $('#spread-toggle');
+  button.toggleAttribute('disabled', kindle);
+  button.setAttribute('aria-pressed', String(on));
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  button.classList.toggle('selected', on);
+}
+// The side bar's state is a preference of the reader, not of a book: it opens the way it
+// was left, in any document. The width in the preference is the user's; the window can
+// show less (at most 40% of it), without changing what is saved.
+function applySidebar() {
+  const open = prefs.sidebarOpen;
+  $('#reader-sidebar').hidden = !open;
+  $('#reader-sidebar').style.setProperty('--sidebar-width', `${prefs.sidebarWidth}px`);
+  $('#sidebar-toggle').setAttribute('aria-expanded', String(open));
+  $('#sidebar-toggle').classList.toggle('selected', open);
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach((tab) => {
+    const active = tab.dataset.tab === prefs.sidebarTab;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  $('#sidebar-content').setAttribute('aria-labelledby', `tab-${prefs.sidebarTab}`);
+  syncResizer();
+}
+function syncResizer() {
+  const side = $('#reader-sidebar'),
+    handle = $('#sidebar-resizer');
+  const width = side.hidden
+    ? clampSidebarWidth(prefs.sidebarWidth, innerWidth)
+    : Math.round(side.getBoundingClientRect().width);
+  handle.setAttribute('aria-valuemin', String(SIDEBAR_WIDTH.min));
+  handle.setAttribute('aria-valuemax', String(sidebarMax(innerWidth)));
+  handle.setAttribute('aria-valuenow', String(width));
+  handle.setAttribute('aria-valuetext', `${width} px`);
+}
 applyPrefs();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyPrefs);
 
 async function refresh() {
-  snapshot = await invoke<Snapshot>('library_list');
+  const listed = await invoke<Snapshot>('library_list', { historyDay: localDay() });
+  snapshot = { ...listed, archived: listed.archived ?? [] };
+  rememberGoal(prefs);
   renderLibrary();
-  if (snapshot.warning) toast(snapshot.warning);
+  // The catalog keeps its warning for the whole session: say it once, and for long enough to read.
+  if (snapshot.warning && snapshot.warning !== warned) {
+    warned = snapshot.warning;
+    toast(snapshot.warning, undefined, { duration: 12000 });
+  }
+}
+// A tip that is shown only once: the first time, and never again, also after a restart.
+function showHint(id: HintId, message: string, action?: ToastAction) {
+  if (hasSeenHint(prefs.hints, id)) return;
+  prefs.hints = withHint(prefs.hints, id);
+  try {
+    savePreferences(localStorage, prefs);
+  } catch {
+    /* A tip that comes back is better than one that breaks what the reader was doing. */
+  }
+  toast(message, action);
 }
 
 async function patchBook(id: string, patch: Partial<Book>) {
-  const b = await invoke<Book>('update_book', { id, patch });
+  const b = await invoke<Book>('update_book', {
+    id,
+    patch: { ...patch, ...(patch.readingGoal ? { goalDay: localDay() } : {}) },
+  });
   snapshot.books = snapshot.books.map((x) => (x.id === id ? b : x));
   if (current?.id === id) current = { ...b, ...readingPatch };
   return b;
+}
+// Several documents in one write of the catalog: all change, or none does.
+async function patchBooks(updates: { id: string; patch: Partial<Book> }[]) {
+  const changed = await invoke<Book[]>('update_books', { updates });
+  const byId = new Map(changed.map((b) => [b.id, b]));
+  snapshot.books = snapshot.books.map((b) => byId.get(b.id) ?? b);
+  if (current && byId.has(current.id)) current = { ...byId.get(current.id)!, ...readingPatch };
+  return changed;
 }
 async function toggleFavorite(id: string) {
   try {
@@ -92,43 +325,85 @@ async function restoreBook(id: string) {
   try {
     await invoke('restore_book', { id });
     await refresh();
+    settleFocus();
     toast('Documento restaurado.');
   } catch (e) {
     fail(e);
   }
 }
-function bookMenu(anchor: HTMLElement, b: Book) {
+// After a change that took the control with the focus off the screen, the focus goes to the first
+// card, or to the search when there is none.
+function settleFocus() {
+  const active = document.activeElement;
+  if (active && active !== document.body && active.isConnected) return;
+  const first = $('#books').querySelector<HTMLElement>('.book-open:not(:disabled), [data-restore]');
+  (first ?? $('#library-search')).focus({ preventScroll: true });
+}
+// The options of a document, from the button of its card, the reader, or a right click.
+// A document in Removidos has one: restore it.
+function bookMenu(
+  anchor: HTMLElement,
+  b: Book,
+  options: Pick<PopoverOptions, 'at' | 'owner'> = {},
+) {
+  if (!options.at && anchor.getAttribute('aria-expanded') === 'true') {
+    closePopover(true);
+    return;
+  }
+  const removed = snapshot.trash.some((x) => x.id === b.id);
   popover(
     anchor,
-    `<button data-action="open">${icon('book')} Abrir documento</button><button data-action="rename">${icon('edit')} Renomear na biblioteca</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia</button><hr><button data-action="remove">${icon('trash')} Remover da biblioteca</button>`,
+    removed
+      ? `<button data-action="restore">${icon('undo')} Restaurar</button><hr><button data-action="purge" class="danger">${icon('trash')} Excluir definitivamente</button>`
+      : `<button data-action="open">${icon('book')} Abrir documento</button><button data-action="goal">${icon('check')} Meta de leitura</button><button data-action="restart">${icon('undo')} Ler do início</button><button data-action="rename">${icon('edit')} Renomear na biblioteca</button><button data-action="tags">${icon('tag')} Etiquetas…</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia</button><button data-action="export-notes">${icon('note')} Exportar notas</button><hr><button data-action="remove">${icon('trash')} Remover da biblioteca</button>`,
+    { ...options, menu: true, label: `Opções de ${b.title}` },
   );
   $('#popover')
     .querySelectorAll<HTMLElement>('[data-action]')
     .forEach(
       (el) =>
         (el.onclick = async () => {
-          closePopover();
+          // The focus goes back to the card or the button, so that a dialog returns it there.
+          closePopover(true);
           try {
             switch (el.dataset.action) {
+              case 'restore':
+                await restoreBook(b.id);
+                break;
+              case 'purge':
+                await purgeBooks([b.id]);
+                break;
+              case 'tags':
+                editTags([b]);
+                break;
               case 'open':
                 await openBook(b);
                 break;
               case 'rename':
                 renameBook(b);
                 break;
+              case 'goal':
+                await goals(b.id);
+                break;
+              case 'restart':
+                if (current?.id === b.id) restartReading();
+                else await openBook({ ...b, page: 1, top: null, left: null });
+                break;
               case 'finish':
-                await patchBook(b.id, { finished: !b.finished });
-                renderLibrary();
-                updateReaderMeta();
+                await finishBook(b.id);
                 break;
               case 'export':
                 await exportBook(b);
+                break;
+              case 'export-notes':
+                await exportNotes(b);
                 break;
               case 'remove':
                 if (current?.id === b.id) await closeReader();
                 await invoke('remove_book', { id: b.id });
                 await refresh();
-                toast('PDF movido para Removidos.', {
+                // Each removal keeps its own "Desfazer", so the message says which document it is.
+                toast(`${shortTitle(b.title)} movido para Removidos.`, {
                   label: 'Desfazer',
                   run: () => restoreBook(b.id),
                 });
@@ -139,6 +414,7 @@ function bookMenu(anchor: HTMLElement, b: Book) {
         }),
     );
 }
+const shortTitle = (title: string) => `“${title.length > 40 ? `${title.slice(0, 39)}…` : title}”`;
 function renameBook(b: Book) {
   const d = modal(
     `<div class="dialog-heading"><h2>Renomear documento</h2>${ib('close-rename', 'Fechar', 'close', 'data-close')}</div><p>O nome na biblioteca muda. O arquivo original permanece intacto.</p><label class="field-label" for="rename-input">Título</label><input id="rename-input" class="text-field" value="${esc(b.title)}" maxlength="500"><div class="dialog-actions"><button class="secondary" data-close>Cancelar</button><button id="rename-save" class="primary">Salvar título</button></div>`,
@@ -154,6 +430,208 @@ function renameBook(b: Book) {
     }
   };
 }
+// The selection of documents. Ctrl + click and the box of a card tick or untick one; Shift + click
+// ticks the range up to it, in the order on screen. Nothing here draws the list again.
+const visibleOrder = () =>
+  [...document.querySelectorAll<HTMLElement>('#books .book-card')].map(
+    (card) => card.dataset.book!,
+  );
+function syncSelection() {
+  updateSelection({ snapshot, filter, selected });
+}
+function selectCard(id: string, mode: 'toggle' | 'range') {
+  const order = visibleOrder();
+  if (mode === 'range') {
+    if (anchor === null || !order.includes(anchor)) anchor = id;
+    for (const x of rangeIds(order, anchor, id)) selected.add(x);
+  } else {
+    if (!selected.delete(id)) selected.add(id);
+    anchor = id;
+  }
+  syncSelection();
+}
+function selectAll() {
+  for (const id of visibleOrder()) selected.add(id);
+  syncSelection();
+}
+// Says whether there was a selection to clear.
+function clearSelection() {
+  if (!selected.size) return false;
+  selected.clear();
+  anchor = null;
+  syncSelection();
+  return true;
+}
+const chosenBooks = () =>
+  (filter === 'trash' ? snapshot.trash : snapshot.books).filter((b) => selected.has(b.id));
+async function runBatch(work: () => Promise<void>) {
+  if (batching) return;
+  batching = true;
+  try {
+    await work();
+  } catch (e) {
+    fail(e);
+  } finally {
+    batching = false;
+  }
+}
+// The same kind of change for several documents, in one write, with a way back that puts each
+// document as it was.
+async function changeMany(books: Book[], change: (b: Book) => Partial<Book>, message: string) {
+  const updates = books.map((b) => ({ id: b.id, patch: change(b) }));
+  const undo = books.map((b) => ({
+    id: b.id,
+    patch: Object.fromEntries(Object.keys(change(b)).map((key) => [key, b[key as keyof Book]])),
+  }));
+  await patchBooks(updates);
+  keepLibraryView(renderLibrary);
+  toast(message, {
+    label: 'Desfazer',
+    run: () =>
+      void runBatch(async () => {
+        await patchBooks(undo);
+        keepLibraryView(renderLibrary);
+      }),
+  });
+}
+function favoriteSelected() {
+  return runBatch(async () => {
+    const books = chosenBooks(),
+      n = books.length;
+    if (!n) return;
+    const favorite = !books.every((b) => b.favorite);
+    await changeMany(
+      books,
+      () => ({ favorite }),
+      favorite
+        ? `${documents(n)} ${n === 1 ? 'favoritado' : 'favoritados'}.`
+        : `${documents(n)} ${n === 1 ? 'removido' : 'removidos'} dos favoritos.`,
+    );
+  });
+}
+function finishSelected() {
+  return runBatch(async () => {
+    const books = chosenBooks(),
+      n = books.length;
+    if (!n) return;
+    const finished = !books.every((b) => b.finished);
+    await changeMany(
+      books,
+      () => ({ finished }),
+      `${documents(n)} ${n === 1 ? 'marcado' : 'marcados'} como ${finished ? '' : 'não '}concluído${n === 1 ? '' : 's'}.`,
+    );
+  });
+}
+function removeSelected() {
+  return runBatch(async () => {
+    const ids = chosenBooks().map((b) => b.id);
+    if (!ids.length) return;
+    await invoke('remove_books', { ids });
+    selected.clear();
+    anchor = null;
+    await refresh();
+    settleFocus();
+    toast(`${documents(ids.length)} ${ids.length === 1 ? 'movido' : 'movidos'} para Removidos.`, {
+      label: 'Desfazer',
+      run: () => void restoreBooks(ids),
+    });
+  });
+}
+function restoreBooks(ids: string[]) {
+  return runBatch(async () => {
+    if (!ids.length) return;
+    await invoke('restore_books', { ids });
+    for (const id of ids) selected.delete(id);
+    anchor = null;
+    await refresh();
+    settleFocus();
+    toast(`${documents(ids.length)} ${ids.length === 1 ? 'restaurado' : 'restaurados'}.`);
+  });
+}
+// Deletes documents of Removidos for good, after asking. The result says how much room it freed,
+// and tells the files that could not be deleted: those stay in the folder, and the documents are
+// out of the catalog anyway.
+async function purgeBooks(ids: string[], emptying = false) {
+  const books = ids
+    .map((id) => snapshot.trash.find((b) => b.id === id))
+    .filter((b): b is Book => !!b);
+  if (!books.length || batching) return;
+  if (!(await confirmPurge(books, emptying))) return;
+  await runBatch(async () => {
+    const result = await invoke<PurgeResult>('purge_books', { ids: books.map((b) => b.id) });
+    for (const book of books) selected.delete(book.id);
+    anchor = null;
+    await refresh();
+    settleFocus();
+    toast(
+      `${documents(result.purged)} ${result.purged === 1 ? 'excluído' : 'excluídos'} definitivamente.${result.freed ? ` ${size(result.freed)} liberados.` : ''}`,
+    );
+    if (result.failed.length)
+      toast(
+        result.failed.length === 1
+          ? 'Um arquivo não pôde ser apagado e continua na pasta da biblioteca.'
+          : `${result.failed.length} arquivos não puderam ser apagados e continuam na pasta da biblioteca.`,
+        undefined,
+        { kind: 'error', detail: result.failed.join('\n') },
+      );
+  });
+}
+// The tags of one document (the whole list is what is saved), or one or more tags added to several.
+function editTags(books: Book[]) {
+  if (!books.length) return;
+  showTags({
+    books,
+    known: tagCounts(snapshot.books),
+    save: async (tags) => {
+      if (books.length === 1) {
+        await patchBook(books[0].id, { tags });
+        keepLibraryView(renderLibrary);
+        toast('Etiquetas salvas.');
+        return null;
+      }
+      const updates: { id: string; patch: Partial<Book> }[] = [];
+      for (const book of books) {
+        let next = tagsOf(book);
+        for (const tag of tags) {
+          const added = addTag(next, tag);
+          if (added.problem === 'full')
+            return `${shortTitle(book.title)} já tem ${MAX_TAGS} etiquetas.`;
+          if (!added.problem) next = added.tags;
+        }
+        if (next.length !== tagsOf(book).length)
+          updates.push({ id: book.id, patch: { tags: next } });
+      }
+      if (!updates.length) return 'Os documentos já têm essas etiquetas.';
+      const undo = updates.map(({ id }) => ({
+        id,
+        patch: { tags: tagsOf(books.find((b) => b.id === id)!) },
+      }));
+      await patchBooks(updates);
+      keepLibraryView(renderLibrary);
+      toast(
+        `${tags.length === 1 ? 'Etiqueta adicionada' : 'Etiquetas adicionadas'} a ${documents(updates.length)}.`,
+        {
+          label: 'Desfazer',
+          run: () =>
+            void runBatch(async () => {
+              await patchBooks(undo);
+              keepLibraryView(renderLibrary);
+            }),
+        },
+      );
+      return null;
+    },
+  });
+}
+function chooseFilter(next: string) {
+  // What is ticked belongs to what is on screen: another filter starts with nothing ticked.
+  if (next !== filter) {
+    selected.clear();
+    anchor = null;
+  }
+  filter = next;
+  renderLibrary();
+}
 async function exportBook(b: Book) {
   const destination = await save({
     title: 'Exportar cópia do PDF',
@@ -165,40 +643,153 @@ async function exportBook(b: Book) {
     toast('Cópia exportada.');
   }
 }
-async function importFiles(paths?: string[]) {
+// The notes and highlights of a document as a Markdown file, made by the backend from the catalog.
+// The dates are the reader's own: the backend gets the distance from UTC, in minutes.
+async function exportNotes(b: Book) {
+  if (!b.notes?.length) {
+    toast('Este documento ainda não tem notas para exportar.');
+    return;
+  }
+  const stem =
+    b.title
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+      .trim()
+      .slice(0, 100) || 'Notas';
+  const destination = await save({
+    title: 'Exportar notas',
+    defaultPath: `${stem} - notas.md`,
+    filters: [{ name: 'Markdown', extensions: ['md'] }],
+  });
+  if (!destination) return;
+  await invoke('export_notes', {
+    id: b.id,
+    destination,
+    offsetMinutes: -new Date().getTimezoneOffset(),
+  });
+  toast('Notas exportadas.');
+}
+// Files by the dialog (or the ones dropped on the window), or one folder with `folder`. The
+// backend turns folders, dropped or chosen, into the PDFs inside them. With `launched`, the files
+// came from outside (see `openLaunched`): their first book opens, and a single file has no summary.
+async function importFiles(paths?: string[], folder = false, launched = false) {
   if (busy) return;
+  let result: ImportResult | undefined,
+    count = 0;
   try {
     if (!paths) {
-      const selected = await open({
-        title: 'Adicionar PDFs à sua biblioteca',
-        multiple: true,
-        filters: [{ name: 'Documentos PDF', extensions: ['pdf'] }],
-      });
+      const selected = await open(
+        folder
+          ? { title: 'Adicionar uma pasta de PDFs à sua biblioteca', directory: true }
+          : {
+              title: 'Adicionar PDFs à sua biblioteca',
+              multiple: true,
+              filters: [{ name: 'Documentos PDF', extensions: ['pdf'] }],
+            },
+      );
       if (!selected) return;
       paths = Array.isArray(selected) ? selected : [selected];
     }
     if (!paths.length) return;
+    count = paths.length;
     busy = true;
-    $('#import-main').setAttribute('disabled', '');
-    toast(`Copiando ${paths.length} PDF${paths.length === 1 ? '' : 's'}…`);
-    const result = await invoke<{ added: Book[]; duplicates: number; errors: string[] }>(
-      'import_pdfs',
-      { paths },
-    );
+    // The progress is in the button, not in a message for each file.
+    showImportProgress(0, paths.length);
+    result = await invoke<ImportResult>('import_pdfs', { paths });
     await refresh();
-    toast(
-      `${result.added.length} PDF${result.added.length === 1 ? ' adicionado' : 's adicionados'}${result.duplicates ? ` · ${result.duplicates} já existente${result.duplicates === 1 ? '' : 's'}` : ''}`,
-    );
+    // The covers, the page counts and the authors of what came in are read one by one from here.
+    enrichment.add(waitingForMetadata(result.added));
+    if (!launched || count > 1) importSummary(result);
     if (result.errors.length)
       modal(
-        `<div class="dialog-heading"><h2>Alguns arquivos não foram adicionados</h2>${ib('close-errors', 'Fechar', 'close', 'data-close')}</div><p>Os demais arquivos foram importados normalmente.</p><ul class="error-list">${result.errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul><button class="primary" data-close>Entendi</button>`,
+        `<div class="dialog-heading"><h2>Alguns arquivos não foram adicionados</h2>${ib('close-errors', 'Fechar', 'close', 'data-close')}</div><p>Os demais arquivos foram importados normalmente.</p><ul class="error-list">${result.errors.map(importProblem).join('')}</ul><button class="primary" data-close>Entendi</button>`,
       );
   } catch (e) {
     fail(e);
   } finally {
     busy = false;
-    $('#import-main').removeAttribute('disabled');
+    hideImportProgress();
   }
+  // Opening a book is not part of the import: the window can be closed, and another import can
+  // start, while it loads.
+  if (launched && result) await openImported(result);
+  // What came from outside while this import ran was waiting for it.
+  void openLaunched();
+}
+// The PDFs that came from outside the window: a double click or "Abrir com" in the Explorer, or a
+// second launch of the app. The backend keeps their paths until they are asked for, so none is
+// lost while the window starts. They go through the normal import, and then the first one opens,
+// even over a book that is already open. They wait for an import that is running, and for each
+// other: `launchQueue` is what has been asked for and not yet imported.
+const launchQueue: string[] = [];
+let launching = false;
+async function takeLaunched() {
+  launchQueue.push(...(await invoke<string[]>('take_pending_files')));
+  await openLaunched();
+}
+async function openLaunched() {
+  if (launching) return;
+  launching = true;
+  try {
+    while (launchQueue.length && !busy) await importFiles(launchQueue.splice(0), false, true);
+  } finally {
+    launching = false;
+  }
+}
+// The book of the first file of an import: one that came in or, when none did, one that was
+// already there. A book that is still loading is waited for, and one that is open stays as it is.
+async function openImported({ added, existing }: ImportResult) {
+  const id = (added[0] ?? existing[0])?.id;
+  while (loading) await new Promise((resolve) => setTimeout(resolve, 100));
+  const book = snapshot.books.find((b) => b.id === id);
+  if (!book || current?.id === book.id) return;
+  await openBook(book).catch(fail);
+}
+function importFolder() {
+  return importFiles(undefined, true);
+}
+// One message for the whole import. A single book that came in can be opened from it, and a
+// single one that was already there can be shown.
+function importSummary({ added, duplicates, existing, errors }: ImportResult) {
+  if (!added.length && !duplicates) {
+    // Nothing came in. A file that failed is told about in the list of errors; a folder with no
+    // PDF in it has no other way to say so.
+    if (!errors.length) toast('Nenhum PDF encontrado.');
+  } else if (!added.length) {
+    if (existing.length === 1) {
+      const id = existing[0].id;
+      toast(`${shortTitle(existing[0].title)} já estava na biblioteca`, {
+        label: 'Mostrar',
+        run: () => void showBook(id).catch(fail),
+      });
+    } else toast(`${duplicates} PDFs já estavam na biblioteca`);
+  } else {
+    const text = `${added.length} PDF${added.length === 1 ? ' adicionado' : 's adicionados'}${duplicates ? ` · ${duplicates} já existente${duplicates === 1 ? '' : 's'}` : ''}`;
+    if (added.length === 1) {
+      const book = added[0];
+      toast(text, {
+        label: 'Abrir',
+        run: () => void openBook(snapshot.books.find((b) => b.id === book.id) ?? book).catch(fail),
+      });
+    } else toast(text);
+  }
+}
+// Back to the library as it is with nothing typed and nothing filtered, at a card.
+async function showBook(id: string) {
+  if (current) await closeReader();
+  query = '';
+  $<HTMLInputElement>('#library-search').value = '';
+  filter = 'all';
+  selected.clear();
+  anchor = null;
+  renderLibrary();
+  revealBook(id);
+}
+// A line of the import's errors is "file.pdf: reason". The reason is said in plain words; its
+// original text stays only when nothing is known of it.
+function importProblem(line: string) {
+  const at = line.indexOf(': ');
+  const { message, detail } = describeError(at > 0 ? line.slice(at + 2) : line);
+  return `<li>${at > 0 ? `<strong>${esc(line.slice(0, at))}:</strong> ` : ''}${esc(message)}${message === GENERIC_ERROR && detail ? ` <span class="quiet-label">(${esc(detail)})</span>` : ''}</li>`;
 }
 
 function queueReading(patch: Partial<Book>) {
@@ -232,8 +823,17 @@ async function flushReading() {
 async function openBook(book: Book) {
   if (!book || loading) return;
   closePopover();
+  clearSelection();
+  jumpPill.hide();
+  selectionBar.hide();
+  notesState.query = '';
+  // A book that is open has the memory and the processor to itself.
+  enrichment.pause();
   if (current) await closeReader();
   loading = true;
+  passwordDeclined = false;
+  resetTracking();
+  finishPrompted = false;
   current = { ...book };
   resumePosition = prefs.resume && book.lastOpened > 0;
   $('#library').hidden = true;
@@ -241,19 +841,38 @@ async function openBook(book: Book) {
   $('#reader-loading').hidden = false;
   updateReaderMeta();
   applyPrefs();
+  outlineState.folds = new Map();
+  renderSidebar();
   try {
     await getCurrentWindow().setTitle(`${book.title} · Fólio`);
     const { Reader } = await import('./reader');
     reader = new Reader({
       mode: prefs.readingMode,
+      spread: prefs.spread,
+      joinPages: prefs.joinPages,
+      chapterBreaks: prefs.chapterBreaks,
       onViewport: updateReaderMeta,
+      onOutline: () => renderSidebar('outline'),
+      // A jump is not a step of the reading: the pace starts over on the page it lands on.
+      // The goals already ignore the pages in between, which are never on screen.
+      onJump: (offer) => {
+        pace.reset();
+        jumpPill.show(offer);
+      },
+      // A highlight (at the pointer) or the mark of a note (a button) was clicked: its options.
+      onNote: (id, anchor, at) => {
+        const note = current?.notes.find((n) => n.id === id);
+        if (!note) return;
+        if (!at && anchor.getAttribute('aria-expanded') === 'true') return closePopover(true);
+        selectionBar.hide();
+        openNoteMenu(anchor, note, at ? { at } : {});
+      },
       container: $('#viewer-container'),
       viewer: $('#pdf-viewer'),
       onPage: (page) => {
         if (current) {
           current.page = page;
           updateReaderMeta();
-          renderSidebar();
         }
       },
       onLocation: (location) => {
@@ -280,7 +899,9 @@ async function openBook(book: Book) {
           d.addEventListener(
             'close',
             () => {
-              if (!sent) resolve(null);
+              if (sent) return;
+              passwordDeclined = true;
+              resolve(null);
             },
             { once: true },
           );
@@ -335,7 +956,8 @@ async function openBook(book: Book) {
   } catch (e) {
     if (current) {
       await closeReader();
-      toast(`Não foi possível abrir este PDF: ${String(e)}`);
+      // Giving up on the password leaves the PDF closed, and that is all there is to say.
+      if (!passwordDeclined) fail(e, 'Não foi possível abrir este PDF.');
     }
   } finally {
     loading = false;
@@ -357,80 +979,270 @@ function updateReaderMeta() {
   $('#bookmark').setAttribute('aria-pressed', String(current.bookmarks.includes(current.page)));
   const kindle = prefs.readingMode === 'kindle',
     screen = reader?.screen;
-  const progress =
-    kindle && screen ? screen.progress : Math.round((current.page / current.pages) * 100);
+  // The same calculation as the library. Only reaching the document's end uses the scroll.
+  const atEnd = !loading && !!screen?.atEnd;
+  const position = {
+    page: current.page,
+    pages: current.pages,
+    finished: current.finished,
+    atEnd,
+  };
   $('#reading-progress').textContent = current.pages
-    ? `${progress}% · Página ${current.page} de ${current.pages}`
+    ? `${readingProgress(position)}% · Página ${current.page} de ${current.pages}`
     : '';
-  $('#reading-label').textContent = kindle
-    ? 'Kindle · ← → ou Espaço'
-    : current.finished
-      ? 'Leitura concluída'
+  const left = remainingTime({
+    ...position,
+    chapters: reader?.chapterStarts,
+    secondsPerPage: secondsPerPage(prefs.pace, current.id),
+  });
+  const estimate = left
+    ? `≈ ${left.chapter === null ? '' : `<span class="time-chapter">${formatDuration(left.chapter)} no capítulo · </span>`}${formatDuration(left.book)} no livro`
+    : '';
+  // Scrolling calls this constantly; touch the DOM only when the text changes.
+  if ($('#reading-time').dataset.estimate !== estimate) {
+    $('#reading-time').dataset.estimate = estimate;
+    $('#reading-time').innerHTML = estimate;
+    $('#reading-time').hidden = !left;
+  }
+  $('#reading-label').textContent = current.finished
+    ? 'Leitura concluída'
+    : kindle
+      ? 'Kindle · ← → ou Espaço'
       : `${size(current.size)} · Cópia local`;
+  const finish = $('#finish-reading');
+  finish.textContent = current.finished ? 'Concluído' : 'Concluir leitura';
+  finish.setAttribute('aria-pressed', String(current.finished));
+  finish.title = current.finished ? 'Marcar como não concluído' : 'Marcar livro como concluído';
+  finish.classList.toggle('selected', current.finished);
+  if (atEnd && !current.finished && !finishPrompted) {
+    finishPrompted = true;
+    const id = current.id;
+    showHint('finish', 'Chegou ao fim? Você pode concluir a leitura.', {
+      label: 'Concluir',
+      run: () => void finishBook(id).catch(fail),
+    });
+  }
+  updateGoals();
+  // With two pages side by side, a step moves by a pair: the ends are those of the pair.
+  const paired = !kindle && prefs.spread !== 'none',
+    shown = spreadPages(current.page, current.pages, kindle ? 'none' : prefs.spread);
   $('#previous').toggleAttribute(
     'disabled',
-    kindle ? !screen || screen.atStart : current.page <= 1,
+    kindle ? !screen || screen.atStart : (shown[0] ?? 1) <= 1,
   );
   $('#next').toggleAttribute(
     'disabled',
-    kindle ? !screen || screen.atEnd : current.page >= current.pages,
+    kindle ? !screen || screen.atEnd : (shown.at(-1) ?? current.page) >= current.pages,
   );
   for (const [id, label] of [
-    ['previous', kindle ? 'Tela anterior' : 'Página anterior'],
-    ['next', kindle ? 'Próxima tela' : 'Próxima página'],
+    ['previous', kindle ? 'Tela anterior' : paired ? 'Páginas anteriores' : 'Página anterior'],
+    ['next', kindle ? 'Próxima tela' : paired ? 'Próximas páginas' : 'Próxima página'],
   ]) {
     $(`#${id}`).setAttribute('aria-label', label);
     $(`#${id}`).title = label;
   }
+  syncSidebar();
 }
 function setReadingMode(mode: Preferences['readingMode']) {
   prefs.readingMode = mode;
   applyPrefs();
 }
 
+function resetTracking() {
+  activity.reset();
+  pace.reset();
+}
+function goalBooks() {
+  return snapshot.books.map((b) => (current?.id === b.id ? current : b));
+}
+function updateGoals() {
+  const books = goalBooks();
+  const global = prefs.dailyGoal;
+  $('#library-goal').textContent = global
+    ? `Hoje · ${goalLabel(global, globalCount(books, global))}`
+    : 'Definir meta diária';
+  const goal = current && effectiveGoal(current, global);
+  $('#reader-goal').textContent = goal
+    ? `Hoje · ${goalLabel(
+        goal,
+        current!.readingGoal?.mode === 'custom'
+          ? dayCount(current!, goal.unit)
+          : globalCount(books, goal),
+      )}`
+    : 'Meta diária';
+  reader?.setGoalTracking(!!current && !current.finished);
+}
+async function history(id?: string) {
+  await flushReading();
+  resetTracking();
+  // The days of a document deleted for good are still counted: its record has no file, only them.
+  showHistory(
+    prefs,
+    [...goalBooks(), ...snapshot.trash, ...snapshot.archived.map(archivedAsBook)],
+    id,
+    new Set(snapshot.archived.map((a) => a.id)),
+  );
+}
+async function goals(id?: string) {
+  await flushReading();
+  resetTracking();
+  showGoals(
+    prefs,
+    {
+      books: goalBooks,
+      save: patchBook,
+      history: (scope) => void history(scope).catch(fail),
+      apply: () => {
+        applyPrefs();
+        renderLibrary();
+      },
+    },
+    id,
+  );
+}
+async function finishBook(id: string) {
+  await flushReading();
+  const book = snapshot.books.find((b) => b.id === id);
+  if (!book) return;
+  const finished = !book.finished;
+  await patchBook(id, { finished });
+  resetTracking();
+  renderLibrary();
+  updateReaderMeta();
+  toast(
+    finished ? 'Leitura concluída. Ela está em Concluídos.' : 'Livro marcado como não concluído.',
+    {
+      label: 'Desfazer',
+      run: () => {
+        void patchBook(id, { finished: !finished })
+          .then(() => {
+            renderLibrary();
+            updateReaderMeta();
+          })
+          .catch(fail);
+      },
+    },
+  );
+}
+setInterval(() => {
+  const day = localDay();
+  if (day !== goalDay) {
+    goalDay = day;
+    resetTracking();
+    updateGoals();
+  }
+  if (!current || !reader || loading || current.finished) {
+    resetTracking();
+    return;
+  }
+  // One definition of "reading", shared by the goals and the pace estimate.
+  const active =
+    document.hasFocus() &&
+    !document.hidden &&
+    !$<HTMLDialogElement>('#dialog').open &&
+    $('#find-bar').hidden &&
+    $('#popover').hidden;
+  const now = performance.now();
+  // One page, or the pair on screen in a two-page layout. A pair is one step of two pages.
+  const shown = reader.screenPages;
+  const measured = pace.sample({ book: current.id, page: shown.first, active }, now);
+  if (measured !== null) {
+    prefs.pace = recordPace(prefs.pace, current.id, measured, Date.now());
+    try {
+      savePreferences(localStorage, prefs);
+    } catch {
+      /* The pace is a convenience. Counting reading goals must not depend on it. */
+    }
+    updateReaderMeta();
+  }
+  const credit = activity.sample(
+    {
+      book: current.id,
+      day,
+      page: shown.first,
+      last: shown.last,
+      active,
+      atEnd: reader.screen.atEnd,
+      chapters: reader.chapterStarts,
+    },
+    now,
+  );
+  const record = dayRecord(current, day);
+  const next = withCredit(record, credit);
+  if (next !== record) {
+    queueReading({ readingDays: withDay(current, day, next) });
+    updateGoals();
+  }
+}, 1000);
+
 async function closeReader() {
   if (!current) return;
+  resetTracking();
+  await chrome.exit();
+  closePopover();
+  jumpPill.hide();
+  selectionBar.hide();
   await flushReading();
   const old = reader;
   reader = null;
   current = null;
   loading = false;
+  // The side bar keeps its state for the next book. Its drawings stop with this one.
+  disposeSidebar();
+  $('#sidebar-content').innerHTML = '';
+  renderedTab = null;
   await old?.destroy();
   $('#reader').hidden = true;
   $('#library').hidden = false;
-  document.body.classList.remove('focus-mode');
-  $('#exit-focus').hidden = true;
   $('#find-bar').hidden = true;
-  $('#reader-sidebar').hidden = true;
   await getCurrentWindow().setTitle('Fólio');
   renderLibrary();
   $('#library-search').focus();
+  enrichment.resume();
+}
+// Alt + ← and Alt + →, the side buttons of the mouse and the pill: one step along the positions
+// that the jumps of this document left. With nowhere to go the pill goes, and a message says why.
+function stepJump(direction: 'back' | 'forward') {
+  if (!reader || loading) return;
+  if (direction === 'back' ? reader.back() : reader.forward()) return;
+  jumpPill.hide();
+  toast(
+    direction === 'back'
+      ? 'Nenhuma posição anterior. Ctrl + W volta à biblioteca.'
+      : 'Nenhuma posição à frente.',
+  );
 }
 function restartReading() {
   if (!reader || !current) return;
-  reader.goTo(1);
+  reader.jumpTo(1);
   queueReading({ page: 1 });
   updateReaderMeta();
 }
-function toggleFocus() {
-  const active = document.body.classList.toggle('focus-mode');
-  $('#exit-focus').hidden = !active;
-  reader?.resize();
-}
 function showFind() {
   if (!current) return;
+  closePopover();
   $('#find-bar').hidden = false;
+  chrome.showTop();
   $('#find-input').focus();
   reader?.resize();
 }
 function searchPdf(again = false, back = false) {
   reader?.find($<HTMLInputElement>('#find-input').value, again, back);
 }
-function toggleSidebar(tab?: string) {
-  if (tab) sideTab = tab;
-  const s = $('#reader-sidebar');
-  s.hidden = tab ? false : !s.hidden;
-  renderSidebar();
+function toggleSidebar(tab?: SidebarTab) {
+  if (!current) return;
+  const focused = $('#reader-sidebar').contains(document.activeElement);
+  if (tab) {
+    prefs.sidebarTab = tab;
+    prefs.sidebarOpen = true;
+  } else prefs.sidebarOpen = !prefs.sidebarOpen;
+  applyPrefs();
+  if (prefs.sidebarOpen) renderSidebar();
+  else {
+    disposeSidebar();
+    // A hidden bar cannot keep the focus; the reading surface takes it.
+    if (focused) $('#viewer-container').focus({ preventScroll: true });
+  }
   reader?.resize();
 }
 async function toggleBookmark() {
@@ -443,30 +1255,41 @@ async function toggleBookmark() {
       : [...current.bookmarks, p].sort((a, b) => a - b),
   });
   updateReaderMeta();
-  renderSidebar();
+  renderSidebar('bookmarks');
 }
-function renderSidebar() {
-  if ($('#reader-sidebar').hidden || !current) return;
+function disposeSidebar() {
+  outlineView?.dispose();
+  outlineView = null;
+  thumbnails?.dispose();
+  thumbnails = null;
+}
+// Draws the active tab again. `only` limits it to one tab: changing the bookmarks does not
+// rebuild the outline the reader is looking at.
+function renderSidebar(only?: SidebarTab) {
+  if (!current || $('#reader-sidebar').hidden) return;
+  const tab = prefs.sidebarTab;
+  if (only && only !== tab) return;
   const content = $('#sidebar-content');
-  document
-    .querySelectorAll<HTMLElement>('[data-tab]')
-    .forEach((b) => b.classList.toggle('active', b.dataset.tab === sideTab));
-  if (sideTab === 'outline') {
-    const items = reader?.outline || [];
-    const render = (items: any[], depth = 0): string =>
-      items
-        .map(
-          (item) =>
-            `<button class="outline-item" style="padding-left:${16 + depth * 12}px" data-dest="${esc(JSON.stringify(item.dest))}">${esc(item.title || 'Seção')}</button>${render(item.items || [], depth + 1)}`,
-        )
-        .join('');
-    content.innerHTML = items.length
-      ? render(items)
-      : `<div class="side-empty">${icon('list')}<h3>Sem sumário neste PDF</h3><p>Use o número da página ou a busca para navegar.</p></div>`;
-    content
-      .querySelectorAll<HTMLElement>('[data-dest]')
-      .forEach((b) => (b.onclick = () => reader?.destination(JSON.parse(b.dataset.dest!))));
-  } else if (sideTab === 'bookmarks') {
+  const scrolled = renderedTab === tab ? content.scrollTop : 0;
+  disposeSidebar();
+  renderedTab = tab;
+  shownInSidebar = '';
+  const ready = !!reader && !loading;
+  const waiting = (text: string) =>
+    `<div class="side-empty" role="status"><span class="spinner"></span><p>${text}</p></div>`;
+  if (tab === 'outline') {
+    if (!reader || !ready || !reader.outlineReady)
+      content.innerHTML = waiting('Abrindo o sumário…');
+    else if (!reader.outline.length)
+      content.innerHTML = `<div class="side-empty">${icon('list')}<h3>Sem sumário neste PDF</h3><p>Use o número da página, as miniaturas ou a busca para navegar.</p></div>`;
+    else
+      outlineView = new OutlineView(content, reader.outline, outlineState, (entry) =>
+        reader?.destination(entry.dest),
+      );
+  } else if (tab === 'pages') {
+    if (!reader || !ready) content.innerHTML = waiting('Abrindo as páginas…');
+    else thumbnails = new ThumbnailList(content, reader, (page) => reader?.jumpTo(page));
+  } else if (tab === 'bookmarks') {
     content.innerHTML = current.bookmarks.length
       ? current.bookmarks
           .map(
@@ -476,54 +1299,199 @@ function renderSidebar() {
           .join('')
       : `<div class="side-empty">${icon('bookmark')}<h3>Guarde uma página</h3><p>Clique no marcador da barra ou use Ctrl + B.</p></div>`;
   } else {
-    content.innerHTML = `<button id="side-add-note" class="secondary">${icon('plus')} Nova nota</button>${current.notes.length ? current.notes.map((n) => `<article class="note-card"><button class="note-page" data-page="${n.page}">Página ${n.page} ${icon('arrow')}</button>${n.quote ? `<blockquote>${esc(n.quote)}</blockquote>` : ''}<p>${esc(n.text)}</p><button class="text-button" data-edit-note="${n.id}">Editar</button></article>`).join('') : `<div class="side-empty">${icon('note')}<h3>Suas ideias, por perto</h3><p>Selecione um trecho e adicione uma nota. Tudo fica salvo neste computador.</p></div>`}`;
-    $('#side-add-note').onclick = () => editNote();
-    content
-      .querySelectorAll<HTMLElement>('[data-edit-note]')
-      .forEach(
-        (b) =>
-          (b.onclick = () => editNote(current?.notes.find((n) => n.id === b.dataset.editNote))),
-      );
+    renderNotes(content, current.notes, notesState, {
+      add: () => editNote(),
+      edit: (note) => editNote(note),
+      menu: (anchor, note) => openNoteMenu(anchor, note),
+      go: (note) => reader?.jumpToNote(note),
+      exportNotes: () => current && void exportNotes(current).catch(fail),
+    });
   }
-  content
-    .querySelectorAll<HTMLElement>('[data-page]')
-    .forEach((b) => (b.onclick = () => reader?.goTo(Number(b.dataset.page))));
+  if (tab === 'bookmarks')
+    content
+      .querySelectorAll<HTMLElement>('[data-page]')
+      .forEach((b) => (b.onclick = () => reader?.jumpTo(Number(b.dataset.page))));
+  content.scrollTop = scrolled;
+  syncSidebar();
 }
-function editNote(existing?: Note) {
+// Follows the reading without drawing the tab again: the section and the pages on screen.
+function syncSidebar() {
+  if (!current || loading || $('#reader-sidebar').hidden) return;
+  const tab = prefs.sidebarTab;
+  let key = '';
+  if (tab === 'outline' && outlineView) key = `outline:${current.page}`;
+  else if (tab === 'pages' && thumbnails && reader) {
+    const shown = reader.screenOf(current.page);
+    key = `pages:${shown.first}:${shown.last}`;
+  } else if (tab === 'bookmarks') key = `bookmarks:${current.page}`;
+  if (!key || key === shownInSidebar) return;
+  shownInSidebar = key;
+  if (tab === 'outline') outlineView?.show(current.page);
+  else if (tab === 'pages' && reader) {
+    const shown = reader.screenOf(current.page);
+    thumbnails?.show(shown.first, shown.last);
+  } else
+    $('#sidebar-content')
+      .querySelectorAll<HTMLElement>('.bookmark-row')
+      .forEach((row) => {
+        const on = Number(row.dataset.page) === current?.page;
+        row.classList.toggle('active', on);
+        if (on) row.setAttribute('aria-current', 'page');
+        else row.removeAttribute('aria-current');
+      });
+}
+// The notes of the open book change one at a time, each on the notes as they are by then, so that
+// two highlights made in quick succession both stay. The pages and the side bar follow.
+let notesChain: Promise<unknown> = Promise.resolve();
+function changeNotes(change: (notes: Note[]) => Note[]) {
+  const id = current?.id;
+  if (!id) return Promise.resolve();
+  const run = async () => {
+    await flushReading();
+    if (current?.id !== id) return;
+    await patchBook(id, { notes: change([...current.notes]) });
+    if (current?.id !== id) return;
+    reader?.setNotes(current.notes);
+    renderSidebar('notes');
+  };
+  const done = notesChain.catch(() => {}).then(run);
+  notesChain = done;
+  return done;
+}
+// The passage that is selected in the pages, highlighted in `color`. A selection across pages
+// becomes one highlight for each page. Says whether there was a selection.
+function highlightSelection(color: NoteColor = rememberedColor()) {
+  const capture = reader?.captureSelection();
+  if (!capture || !current || loading) return false;
+  rememberColor(color);
+  const now = Date.now();
+  const made = capture.pieces.map((piece, i): Note => ({
+    id: crypto.randomUUID(),
+    page: piece.page,
+    text: '',
+    quote: piece.quote,
+    created: now + i,
+    rects: piece.rects,
+    color,
+  }));
+  selectionBar.hide();
+  getSelection()?.removeAllRanges();
+  void changeNotes((notes) => [...notes, ...made])
+    .then(() =>
+      toast(made.length === 1 ? 'Trecho realçado.' : `Trecho realçado em ${made.length} páginas.`),
+    )
+    .catch(fail);
+  return true;
+}
+// A note on the passage that is selected. Says whether there was a selection.
+function annotateSelection() {
+  const capture = reader?.captureSelection();
+  if (!capture || !current || loading) return false;
+  selectionBar.hide();
+  getSelection()?.removeAllRanges();
+  editNote(undefined, capture);
+  return true;
+}
+async function copySelection() {
+  const text = getSelection()?.toString().trim() ?? '';
+  selectionBar.hide();
+  if (!text) return;
+  const copied = await copyText(text);
+  getSelection()?.removeAllRanges();
+  if (copied) toast('Texto copiado.');
+  else toast('Não foi possível copiar o texto.', undefined, { kind: 'error' });
+}
+async function copyNote(note: Note) {
+  const copied = await copyText(note.quote.trim() || note.text.trim());
+  if (copied) toast('Texto copiado.');
+  else toast('Não foi possível copiar o texto.', undefined, { kind: 'error' });
+}
+// Deletes a note or a highlight, with a way back that puts it where it was.
+async function removeNote(note: Note) {
+  const id = note.id;
+  await changeNotes((notes) => notes.filter((n) => n.id !== id));
+  toast(
+    !isHighlight(note)
+      ? 'Nota excluída.'
+      : note.text.trim()
+        ? 'Realce e nota excluídos.'
+        : 'Realce excluído.',
+    {
+      label: 'Desfazer',
+      run: () =>
+        void changeNotes((notes) =>
+          notes.some((n) => n.id === id) ? notes : [...notes, note],
+        ).catch(fail),
+    },
+  );
+}
+// The options of a note or a highlight: from its mark in the page, from the text itself or from
+// its card in the side bar.
+function openNoteMenu(
+  anchor: HTMLElement,
+  note: Note,
+  options: Pick<PopoverOptions, 'at' | 'owner'> = {},
+) {
+  noteMenu(
+    anchor,
+    note,
+    {
+      edit: (n) => editNote(n),
+      color: (n, color) =>
+        void changeNotes((notes) => notes.map((x) => (x.id === n.id ? { ...x, color } : x))).catch(
+          fail,
+        ),
+      copy: (n) => void copyNote(n),
+      remove: (n) => void removeNote(n).catch(fail),
+    },
+    options,
+  );
+}
+// The dialog of a note. A new note quotes the passage that is selected in the pages, if there is
+// one (`picked` is what was selected when the dialog was asked for), and the lines of that passage
+// make it a highlight. A selection across pages gives the part on the first page. An old note
+// without lines stays a note: no colour, no mark in the page. A highlight with no text is valid.
+function editNote(existing?: Note, picked?: SelectionCapture | null) {
   if (!current) return;
-  const selection = window.getSelection();
-  const quote =
-    existing?.quote ||
-    (selection?.anchorNode && $('#pdf-viewer').contains(selection.anchorNode)
-      ? selection.toString().trim().slice(0, 20000)
-      : '');
-  const page = existing?.page || current.page;
-  const id = current.id;
+  const capture = existing ? null : (picked ?? reader?.captureSelection() ?? null);
+  const piece = capture?.pieces[0];
+  const quote = existing ? existing.quote : (piece?.quote ?? '');
+  const page = existing?.page ?? piece?.page ?? current.page;
+  const rects = existing ? noteRects(existing) : (piece?.rects ?? []);
+  const color: NoteColor = existing ? colorOf(existing) : rememberedColor();
+  const colors = `<fieldset class="color-field"><legend class="field-label">Cor do realce</legend><div class="color-choices">${NOTE_COLORS.map(
+    (c) =>
+      `<label class="color-choice"><input type="radio" name="note-color" value="${c}"${c === color ? ' checked' : ''}><span class="swatch" data-color="${c}" aria-hidden="true"></span>${COLOR_LABELS[c]}</label>`,
+  ).join('')}</div></fieldset>`;
   const d = modal(
-    `<div class="dialog-heading"><h2>${existing ? 'Editar nota' : 'Nova nota'} <span class="quiet-label">Página ${page}</span></h2>${ib('close-note', 'Fechar', 'close', 'data-close')}</div>${quote ? `<blockquote class="quote-preview">${esc(quote)}</blockquote>` : '<p>Registre uma ideia ou selecione um trecho no PDF para citá-lo.</p>'}<label class="field-label" for="note-text">Sua nota</label><textarea id="note-text" rows="6" maxlength="20000" placeholder="O que você quer lembrar?">${esc(existing?.text || '')}</textarea><div class="dialog-actions">${existing ? '<button id="delete-note" class="text-button danger">Excluir nota</button>' : ''}<button class="secondary" data-close>Cancelar</button><button id="save-note" class="primary">Salvar nota</button></div>`,
+    `<div class="dialog-heading"><h2>${existing ? 'Editar nota' : 'Nova nota'} <span class="quiet-label">Página ${page}</span></h2>${ib('close-note', 'Fechar', 'close', 'data-close')}</div>${quote ? `<blockquote class="quote-preview">${esc(quote)}</blockquote>` : '<p>Registre uma ideia ou selecione um trecho no PDF para citá-lo.</p>'}${(capture?.pieces.length ?? 0) > 1 ? `<p class="quiet-label">A seleção passa por mais de uma página. A nota guarda só o trecho da página ${page}.</p>` : ''}${rects.length ? colors : ''}<label class="field-label" for="note-text">Sua nota</label><textarea id="note-text" rows="6" maxlength="20000" placeholder="O que você quer lembrar?">${esc(existing?.text || '')}</textarea><div class="dialog-actions">${existing ? `<button id="delete-note" class="text-button danger">${deleteLabel(existing)}</button>` : ''}<button class="secondary" data-close>Cancelar</button><button id="save-note" class="primary">Salvar nota</button></div>`,
   );
   $('#save-note').onclick = async () => {
     const text = $<HTMLTextAreaElement>('#note-text').value.trim();
-    if (!text && !quote) {
+    if (!text && !quote && !rects.length) {
       toast('Escreva uma nota antes de salvar.');
       return;
     }
+    const chosen = d.querySelector<HTMLInputElement>('input[name="note-color"]:checked')?.value;
+    const note: Note = {
+      id: existing?.id || crypto.randomUUID(),
+      page,
+      text,
+      quote,
+      created: existing?.created || Date.now(),
+      ...(rects.length ? { rects, color: NOTE_COLORS.find((c) => c === chosen) ?? color } : {}),
+    };
     try {
-      await flushReading();
-      const notes = [...(current?.notes || [])];
-      const note = {
-        id: existing?.id || crypto.randomUUID(),
-        page,
-        text,
-        quote,
-        created: existing?.created || Date.now(),
-      };
-      const idx = notes.findIndex((n) => n.id === note.id);
-      if (idx >= 0) notes[idx] = note;
-      else notes.push(note);
-      await patchBook(id, { notes });
+      await changeNotes((notes) => {
+        const idx = notes.findIndex((n) => n.id === note.id);
+        if (idx >= 0) notes[idx] = note;
+        else notes.push(note);
+        return notes;
+      });
       d.close();
-      toggleSidebar('notes');
+      if (note.color) rememberColor(note.color);
+      // A highlight shows itself in the page; a note without a place is shown in the side bar.
+      if (!rects.length) toggleSidebar('notes');
       toast('Nota salva.');
     } catch (e) {
       fail(e);
@@ -531,9 +1499,8 @@ function editNote(existing?: Note) {
   };
   $('#delete-note')?.addEventListener('click', async () => {
     try {
-      await patchBook(id, { notes: current!.notes.filter((n) => n.id !== existing!.id) });
+      await removeNote(existing!);
       d.close();
-      renderSidebar();
     } catch (e) {
       fail(e);
     }
@@ -541,17 +1508,31 @@ function editNote(existing?: Note) {
 }
 
 $('#import-main').onclick = () => void importFiles();
+$('#import-folder').onclick = () => void importFolder();
 $('#library-search').oninput = () => {
   query = $<HTMLInputElement>('#library-search').value;
   renderLibrary();
 };
-document.querySelectorAll<HTMLElement>('[data-filter]').forEach(
-  (b) =>
-    (b.onclick = () => {
-      filter = b.dataset.filter!;
-      renderLibrary();
-    }),
-);
+document
+  .querySelectorAll<HTMLElement>('[data-filter]')
+  .forEach((b) => (b.onclick = () => chooseFilter(b.dataset.filter!)));
+// The tags are drawn by the library, so one listener on their list serves all of them.
+$('#tag-nav').onclick = (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLElement>('[data-filter]');
+  if (button) chooseFilter(button.dataset.filter!);
+};
+$('#select-favorite').onclick = () => void favoriteSelected();
+$('#select-finish').onclick = () => void finishSelected();
+$('#select-tag').onclick = () => editTags(chosenBooks());
+$('#select-remove').onclick = () => void removeSelected();
+$('#select-restore').onclick = () => void restoreBooks(chosenBooks().map((b) => b.id));
+$('#select-purge').onclick = () => void purgeBooks(chosenBooks().map((b) => b.id));
+$('#select-clear').onclick = () => void clearSelection();
+$('#empty-trash').onclick = () =>
+  void purgeBooks(
+    snapshot.trash.map((b) => b.id),
+    true,
+  );
 $('#sort').onchange = () => {
   prefs.sort = $<HTMLSelectElement>('#sort').value;
   renderLibrary();
@@ -578,16 +1559,26 @@ $('#cancel-loading').onclick = () => void closeReader().catch(fail);
 $('#restart').onclick = restartReading;
 $('#reader-favorite').onclick = () => current && void toggleFavorite(current.id);
 $('#reader-more').onclick = () => current && bookMenu($('#reader-more'), current);
+$('#finish-reading').onclick = () => current && void finishBook(current.id).catch(fail);
+$('#goals').onclick = () => void goals().catch(fail);
+$('#reading-history').onclick = () => void history().catch(fail);
+$('#library-goal').onclick = () => void goals().catch(fail);
+$('#reader-goal').onclick = () => current && void goals(current.id).catch(fail);
 $('#kindle-toggle').onclick = () => {
   setReadingMode(prefs.readingMode === 'kindle' ? 'scroll' : 'kindle');
   $('#viewer-container').focus();
+  // Only the first time: after that, the reader knows the keys.
   if (prefs.readingMode === 'kindle')
-    toast('Modo Kindle: use ← →, Espaço ou a roda do mouse para passar as telas.');
+    showHint('kindle', 'Modo Kindle: use ← →, Espaço ou a roda do mouse para passar as telas.');
+};
+$('#spread-toggle').onclick = () => {
+  prefs.spread = prefs.spread === 'none' ? pairLayout : 'none';
+  applyPrefs();
 };
 $('#previous').onclick = () => reader?.turn(-1);
 $('#next').onclick = () => reader?.turn(1);
 $('#page-number').onchange = () => {
-  reader?.goTo(Number($<HTMLInputElement>('#page-number').value));
+  reader?.jumpTo(Number($<HTMLInputElement>('#page-number').value));
   updateReaderMeta();
 };
 $('#page-number').onblur = updateReaderMeta;
@@ -596,6 +1587,7 @@ $('#zoom-in').onclick = () => reader?.stepZoom(1);
 $('#zoom-out').onclick = () => reader?.stepZoom(-1);
 $('#rotate').onclick = () => {
   reader?.rotate();
+  thumbnails?.refresh();
   if (current && reader) queueReading({ rotation: reader.rotation });
 };
 $('#bookmark').onclick = () => void toggleBookmark().catch(fail);
@@ -603,16 +1595,32 @@ $('#paper-toggle').onclick = () => {
   prefs.paper = prefs.paper === 'dark' ? 'light' : 'dark';
   applyPrefs();
 };
-$('#focus').onclick = toggleFocus;
-$('#exit-focus').onclick = toggleFocus;
-$('#fullscreen').onclick = async () => {
-  const w = getCurrentWindow();
-  await w.setFullscreen(!(await w.isFullscreen()));
-};
+$('#fullscreen').onclick = () => void chrome.toggle();
 $('#sidebar-toggle').onclick = () => toggleSidebar();
 document
   .querySelectorAll<HTMLElement>('[data-tab]')
-  .forEach((b) => (b.onclick = () => toggleSidebar(b.dataset.tab)));
+  .forEach((b) => (b.onclick = () => toggleSidebar(b.dataset.tab as SidebarTab)));
+$('.side-tabs').addEventListener('keydown', (e) => {
+  const next = tabAfterKey(prefs.sidebarTab, e.key);
+  if (!next || e.altKey || e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  toggleSidebar(next);
+  $(`#tab-${next}`).focus();
+});
+bindSidebarResizer($('#sidebar-resizer'), {
+  width: () => Math.round($('#reader-sidebar').getBoundingClientRect().width),
+  preview: (width) => {
+    $('#reader-sidebar').style.setProperty('--sidebar-width', `${width}px`);
+    syncResizer();
+  },
+  commit: (width) => {
+    prefs.sidebarWidth = width;
+    applyPrefs();
+    reader?.resize();
+  },
+});
+addEventListener('resize', syncResizer);
 $('#add-note').onmousedown = (e) => e.preventDefault();
 $('#add-note').onclick = () => editNote();
 $('#find-toggle').onclick = showFind;
@@ -630,6 +1638,7 @@ $('#find-close').onclick = () => {
   $('#find-bar').hidden = true;
   reader?.closeFind();
   $('#viewer-container').focus();
+  chrome.releaseTop();
   reader?.resize();
 };
 
@@ -639,14 +1648,27 @@ bindShortcuts({
   importFiles,
   closeReader,
   toggleBookmark,
-  toggleFocus,
+  exitFullscreen: () => chrome.exit(),
   showFind,
+  jumpBack: () => stepJump('back'),
+  jumpForward: () => stepJump('forward'),
+  selectAll,
+  clearSelection,
+  highlightSelection: () => highlightSelection(),
+  annotateSelection,
+  dismissSelection: () => selectionBar.dismiss(),
 });
 async function init() {
+  await getCurrentWindow().onResized(() => void chrome.sync().catch(fail));
+  await chrome.sync();
   await refresh();
-  await listen<{ done: number; total: number }>('import-progress', (e) =>
-    toast(`Copiando PDFs… ${e.payload.done} de ${e.payload.total}`),
-  );
+  // Books that came without a cover or a page count (an import from before, or one that was cut
+  // short) are completed in the background.
+  enrichment.add(waitingForMetadata(snapshot.books));
+  // The progress of the copy goes to the import button, and not to a message for each file.
+  await listen<{ done: number; total: number }>('import-progress', (e) => {
+    if (busy) showImportProgress(e.payload.done, e.payload.total);
+  });
   await getCurrentWindow().onDragDropEvent((e) => {
     const data = e.payload;
     $('#drop-overlay').hidden = data.type !== 'over' && data.type !== 'enter';
@@ -661,6 +1683,8 @@ async function init() {
     if (current) {
       e.preventDefault();
       try {
+        // The window is remembered by its size and position: not those of the fullscreen.
+        await chrome.exit().catch(() => {});
         await flushReading();
         await getCurrentWindow().destroy();
       } catch {
@@ -668,9 +1692,13 @@ async function init() {
       }
     }
   });
+  // The PDFs the app was opened with wait in the backend; a second launch says there are more.
+  await listen('open-files', () => void takeLaunched().catch(fail));
+  void takeLaunched().catch(fail);
 }
 void init().catch((e) => {
+  const { message, detail } = describeError(e);
   modal(
-    `<h2>Não foi possível abrir a biblioteca</h2><p>${esc(e)}</p><p>Seus PDFs não foram alterados.</p><button class="primary" onclick="location.reload()">Tentar novamente</button>`,
+    `<h2>Não foi possível abrir a biblioteca</h2><p>${esc(message)}</p>${detail ? `<details class="error-detail"><summary>Detalhes</summary><p>${esc(detail)}</p></details>` : ''}<p>Seus PDFs não foram alterados.</p><button class="primary" onclick="location.reload()">Tentar novamente</button>`,
   );
 });

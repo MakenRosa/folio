@@ -123,23 +123,21 @@ try {
     await page.screenshot({ path: 'test-results/brightness/settings.png' });
     await click('#close-settings');
   });
-  await test('Search, focus and fullscreen still work when the PDF is dimmed', async () => {
+  await test('Search and fullscreen still work when the PDF is dimmed', async () => {
     await click('#find-toggle');
     await page.locator('#find-input').fill('biblioteca');
     await page.waitForFunction(() =>
       /de [1-9]/.test(document.querySelector('#find-count').textContent),
     );
     await click('#find-close');
-    await click('#focus');
     assert.equal(await opacity(), '0.6');
     assert.equal(await page.locator('#brightness-overlay').isVisible(), true);
-    await click('#exit-focus');
     await click('#fullscreen');
     await page.waitForFunction(() =>
       window.__TAURI_INTERNALS__.invoke('plugin:window|is_fullscreen', { label: 'main' }),
     );
     assert.equal(await opacity(), '0.6');
-    await click('#fullscreen');
+    await page.keyboard.press('F11');
     await page.waitForFunction(
       async () =>
         !(await window.__TAURI_INTERNALS__.invoke('plugin:window|is_fullscreen', {
