@@ -20,9 +20,14 @@ const paths: Record<string, string> = {
   moon: '<path d="M20.9 13a9 9 0 0 1-9.9-9.9A9 9 0 1 0 20.9 13Z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/>',
   warm: '<path d="M9 14V5a3 3 0 0 1 6 0v9a5 5 0 1 1-6 0Z"/><path d="M12 9v9"/>',
+  // The circle with one half filled, the sign of the display settings: paper, brightness and warmth.
+  appearance:
+    '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor"/>',
   bookmark: '<path d="M6 3h12v18l-6-4-6 4Z"/>',
   note: '<path d="M14 3H4v18h16V9m-6-6v6h6M8 13h8M8 17h5"/>',
   rotate: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
+  spread:
+    '<rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/><path d="M5.5 9h3M5.5 12h3M15.5 9h3M15.5 12h3"/>',
   expand: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
   minus: '<path d="M5 12h14"/>',
   download: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
@@ -30,10 +35,18 @@ const paths: Record<string, string> = {
   leaf: '<path d="M20 3C8 1 2 8 6 16s16 4 14-13ZM4 21 15 10"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2-3 4m0 3h.01"/>',
   edit: '<path d="m16 3 5 5-12 12H4v-5ZM14 5l5 5"/>',
-  focus: '<path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6"/>',
+  collapse: '<path d="M3 8h5V3m8 0v5h5M3 16h5v5m8 0v-5h5"/>',
   undo: '<path d="M3 10h11a6 6 0 0 1 0 12M3 10l6-6m-6 6 6 6"/>',
   file: '<path d="M14 2H5v20h14V7ZM14 2v6h5M8 13h8M8 17h5"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8Z"/><path d="M7.5 8.5h.01"/>',
+  archive: '<path d="M3 4h18v5H3ZM5 9v11h14V9M10 13h4"/>',
+  target:
+    '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8M3.5 3.5V8H8M12 7.5V12l3.5 2"/>',
+  restart: '<path d="M5 5v14M19 5l-10 7 10 7Z"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
 };
 export function icon(name: string) {
-  return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.file}</svg>`;
+  // The width of the line is in pixels, not in units of the drawing (see `svg.icon` in ui.css).
+  return `<svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.file}</svg>`;
 }

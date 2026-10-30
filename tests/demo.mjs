@@ -43,7 +43,8 @@ try {
   await page.screenshot({ path: 'docs/media/biblioteca.png' });
   await page.locator(`[data-open="${book.id}"]`).click();
   await page.waitForFunction(() => document.querySelector('#reader-loading').hidden);
-  await page.locator('#restart').click();
+  await page.locator('#reader-more').click();
+  await page.locator('#popover [data-action="restart"]').click();
   await page.locator('#zoom').selectOption('1.25');
   await page.waitForTimeout(400);
   await page.locator('#next').click();
@@ -52,7 +53,9 @@ try {
   await page.locator('#toast').waitFor({ state: 'hidden' });
   await page.screenshot({ path: 'docs/media/leitura.png' });
   await page.setViewportSize({ width: 1280, height: 1100 });
-  await page.locator('#reader-settings').click();
+  await page.locator('#reader-more').click();
+  await page.locator('#popover [data-action="preferences"]').click();
+  await page.locator('#prefs-tab-aparencia').click();
   for (const [selector, value] of [
     ['#brightness-range', '70'],
     ['#warm-range', '20'],
@@ -60,8 +63,9 @@ try {
     await page.locator(selector).fill(value);
     await page.locator(selector).dispatchEvent('input');
   }
-  await page.locator('#dialog').evaluate((dialog) => {
-    dialog.scrollTop = 0;
+  // The section scrolls, not the dialog: down to where the two sliders and the sample are.
+  await page.locator('.prefs-panels').evaluate((panels) => {
+    panels.scrollTop = panels.scrollHeight;
   });
   await page.screenshot({
     path: 'docs/media/conforto.png',

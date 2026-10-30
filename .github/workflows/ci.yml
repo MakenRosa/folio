@@ -35,6 +35,20 @@ jobs:
       - run: python -m pip install -r requirements-test.txt
       - run: npm run build
       - run: npm run check
+      - run: npx playwright install chromium
+      - run: python scripts/fixtures.py
+      - run: npm run test:ui
+      # The native suite needs the WebView2 runtime, which a runner image may not have.
+      - name: WebView2 runtime
+        shell: pwsh
+        run: |
+          $id = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $keys = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$id", "HKCU:\Software\Microsoft\EdgeUpdate\Clients\$id"
+          $version = $keys | Where-Object { Test-Path $_ } | ForEach-Object { (Get-ItemProperty $_).pv } | Select-Object -First 1
+          if ($version) { "WebView2 Runtime $version"; exit 0 }
+          'WebView2 Runtime not found; installing it.'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile "$env:RUNNER_TEMP\webview2.exe"
+          Start-Process "$env:RUNNER_TEMP\webview2.exe" -ArgumentList '/silent', '/install' -Wait
       - run: npm run test:native
       - run: npm run package:source
       - name: Test evidence from the isolated CI library
@@ -49,3 +63,9 @@ jobs:
             test-results/brightness/results.json
             test-results/kindle/results.json
             test-results/kindle/restart.json
+            test-results/joined-pages/results.json
+            test-results/chapters/results.json
+            test-results/reader-chrome/results.json
+            test-results/spread/results.json
+            test-results/sidebar/results.json
+            test-results/reader-chrome/*.png
