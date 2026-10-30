@@ -66,7 +66,7 @@ tela atravessa a divisão entre duas páginas do PDF.
   de leitura é mantido. Reimportar o mesmo PDF depois cria um documento novo.
 - Busca textual no PDF, seleção, sumário, zoom, rotação, marcas e notas.
 - **Notas e realces no próprio texto.** Ao selecionar um trecho (com o mouse ou pelo teclado), uma
-  barra pequena aparece junto ao fim da seleção, sem cobri-la nem sair da janela: **Realçar** em
+  barra pequena aparece junto à seleção (acima da primeira linha, quando há espaço), sem cobri-la nem sair da janela: **Realçar** em
   amarelo, verde, azul ou rosa, **Adicionar nota** (abre a nota com a citação e as linhas do trecho) e
   **Copiar**. Ela some ao desfazer a seleção, ao rolar, ao clicar fora e com Esc. Com um trecho
   selecionado, **H** realça na última cor usada e **N** adiciona uma nota (sem trecho, avisam como
@@ -116,7 +116,7 @@ tela atravessa a divisão entre duas páginas do PDF.
 - **Barra lateral do leitor** com Sumário, Páginas, Marcas e Notas, que abre e fecha com
   a tecla S. O sumário marca a seção que você está lendo e rola até ela sem tirar o foco;
   os níveis se recolhem, e por padrão aparecem o primeiro nível e o caminho até a seção
-  atual. A aba Páginas mostra miniaturas com o número de cada página, desenhadas só perto
+  atual; a lista é uma parada de Tab só (as setas andam pelos itens). A aba Páginas mostra miniaturas com o número de cada página, desenhadas só perto
   da área visível, e marca a página atual ou as duas páginas de um par. A barra lembra se
   estava aberta, a aba e a largura em todos os documentos. Arraste a borda dela, ou use as
   setas, para mudar a largura (de 220 a 480 px, no máximo 40% da janela).
@@ -141,7 +141,7 @@ refluxo de texto, OCR, edição de páginas, assinatura digital ou preenchimento
 de formulários. O papel escuro inverte também as imagens. As miniaturas mostram a página
 inteira, também no Kindle com margens unidas, e seguem a rotação e o papel escolhidos.
 O sumário só marca seções cujo destino aponta para uma página do documento; links
-externos ou destinos quebrados continuam na lista, sem marca. Notas, realces e marcas
+externos ou destinos quebrados continuam na lista, sem marca, com aparência de indisponíveis. Notas, realces e marcas
 ficam no catálogo, sem alterar o PDF. Senhas de PDFs não são armazenadas.
 
 As metas contam páginas do PDF, não telas do Kindle: uma página conta após oito

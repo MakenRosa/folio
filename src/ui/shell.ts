@@ -10,9 +10,10 @@ export const SAVE_STATUS = {
   retrying: 'Não foi possível salvar. Tentando novamente…',
 };
 // A button of the bar that appears when documents are selected. The text goes away on narrow
-// windows, and the name stays in `aria-label` and in the tooltip.
-const selectionAction = (id: string, ico: string, label: string, extra = '') =>
-  `<button id="${id}" class="selection-action ${extra}" type="button" aria-label="${label}" title="${label}">${icon(ico)}<span>${label}</span></button>`;
+// windows, and the name stays in `aria-label` and in the tooltip. A toggle (favorite, finished) keeps
+// its name and says its state in `aria-pressed`, as the buttons of the card and of the reader do.
+const selectionAction = (id: string, ico: string, label: string, extra = '', attrs = '') =>
+  `<button id="${id}" class="selection-action ${extra}" type="button" aria-label="${label}" title="${label}" ${attrs}>${icon(ico)}<span>${label}</span></button>`;
 export const appShell = `
 <div id="library" class="library-shell">
  <aside class="library-sidebar">
@@ -34,7 +35,7 @@ export const appShell = `
   </nav>
   <div id="tag-section" class="tag-section" hidden><div id="tag-label" class="nav-label">ETIQUETAS</div><nav id="tag-nav" aria-labelledby="tag-label"></nav></div>
   <div class="sidebar-bottom"><div class="local-note"><span class="status-dot"></span> Só no seu computador<span>Seus arquivos. Seu espaço.</span></div>
-   <button class="nav-item" data-filter="trash">${icon('trash')}<span>Removidos</span></button>
+   <button class="nav-item" data-filter="trash">${icon('trash')}<span>Removidos</span><small id="count-trash">0</small></button>
    <button id="goals" class="nav-item">${icon('target')}<span>Metas de leitura</span></button><button id="reading-history" class="nav-item">${icon('history')}<span>Histórico de leitura</span></button><button id="settings" class="nav-item">${icon('settings')}<span>Preferências</span></button>
    <button id="help" class="nav-item" title="Guia e atalhos (F1)">${icon('help')}<span>Guia e atalhos</span></button>
   </div>
@@ -44,7 +45,7 @@ export const appShell = `
   <div class="library-content"><div class="heading-row"><div><h1 id="library-title">Sua biblioteca</h1><p id="library-subtitle">Boas leituras começam por aqui.</p></div><span id="library-total" class="quiet-label"></span></div>
    <div id="trash-bar" class="trash-bar" hidden><span id="trash-summary"></span><button id="empty-trash" class="secondary danger" type="button">${icon('trash')} Esvaziar Removidos</button></div>
    <button id="library-goal" class="library-goal" title="Configurar metas de leitura"><span id="library-goal-text">Definir meta diária</span><span class="goal-track" aria-hidden="true" hidden><i></i></span></button><section id="continue" aria-label="Continuar leitura" hidden></section>
-   <div class="collection-toolbar"><span id="collection-label">TODOS OS DOCUMENTOS</span><div><label class="sr-only" for="sort">Ordenação</label><select id="sort"><option value="recent">Última atividade</option><option value="added">Adicionados recentemente</option><option value="title">Título A–Z</option><option value="size">Maior tamanho</option></select><div class="segmented" role="radiogroup" aria-label="Visualização">${ib('view-grid', 'Visualização em grade', 'grid', 'role="radio" aria-checked="true"')}${ib('view-list', 'Visualização em lista', 'list', 'role="radio" aria-checked="false" tabindex="-1"')}</div></div></div>
+   <div class="collection-toolbar"><span id="collection-label">TODOS OS DOCUMENTOS</span><div><div class="sort-field"><label for="sort">Ordenar por</label><select id="sort"><option value="recent">Última atividade</option><option value="added">Adicionados recentemente</option><option value="title">Título A–Z</option><option value="size">Maior tamanho</option></select></div><div class="segmented" role="radiogroup" aria-label="Visualização">${ib('view-grid', 'Visualização em grade', 'grid', 'role="radio" aria-checked="true"')}${ib('view-list', 'Visualização em lista', 'list', 'role="radio" aria-checked="false" tabindex="-1"')}</div></div></div>
    <span id="books-keys" class="sr-only">Tab entra na lista e sai dela. Use as setas, Home e End para andar entre os documentos, Enter para abrir ou restaurar e Espaço para selecionar.</span>
    <div id="books" class="book-grid" role="group" aria-label="Documentos" aria-describedby="books-keys"></div>
    <div id="empty"></div>
@@ -54,8 +55,8 @@ export const appShell = `
  <div id="selection-bar" class="selection-bar" role="group" aria-label="Ações para os documentos selecionados" hidden>
   <span id="selection-count" class="selection-count" role="status" aria-live="polite"></span>
   <div class="selection-actions">${[
-    selectionAction('select-favorite', 'star', 'Favoritar'),
-    selectionAction('select-finish', 'check', 'Marcar como concluído'),
+    selectionAction('select-favorite', 'star', 'Favoritar', '', 'aria-pressed="false"'),
+    selectionAction('select-finish', 'check', 'Marcar como concluído', '', 'aria-pressed="false"'),
     selectionAction('select-tag', 'tag', 'Adicionar etiqueta'),
     selectionAction('select-remove', 'archive', 'Remover da biblioteca', 'danger'),
     selectionAction('select-restore', 'undo', 'Restaurar'),
@@ -80,7 +81,7 @@ export const appShell = `
    )
    .join(
      '',
-   )}</div><div id="sidebar-content" role="tabpanel" aria-labelledby="tab-outline"></div><div id="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Largura da barra lateral" aria-controls="reader-sidebar" aria-valuemin="${SIDEBAR_WIDTH.min}" aria-valuemax="${SIDEBAR_WIDTH.max}" aria-valuenow="${SIDEBAR_WIDTH.fallback}" aria-valuetext="${SIDEBAR_WIDTH.fallback} px" tabindex="0" title="Arraste para mudar a largura, ou use as setas"></div></aside><div id="viewer-wrap"><div id="viewer-container" tabindex="0" role="region" aria-label="Páginas do documento"><div id="pdf-viewer" class="pdfViewer"></div></div><div id="jump-pill" class="jump-pill" role="group" aria-label="Voltar ou avançar entre posições da leitura" data-side="back" hidden><button id="jump-back" class="jump-go" type="button">${icon('undo')}<span id="jump-back-text" class="jump-text"></span></button><button id="jump-forward" class="jump-go" type="button" hidden><span id="jump-forward-text" class="jump-text"></span>${icon('arrow')}</button><button id="jump-dismiss" class="jump-dismiss" type="button" title="Dispensar" aria-label="Dispensar">${icon('close')}</button></div><span id="jump-status" class="sr-only" role="status" aria-live="polite"></span><span id="selection-status" class="sr-only" role="status" aria-live="polite"></span><div id="reader-loading" class="loading-state" role="status" hidden><span class="spinner"></span><p>Abrindo seu PDF…</p><button id="cancel-loading" class="text-button">Voltar à biblioteca</button></div><div id="warm-overlay" aria-hidden="true"></div><div id="brightness-overlay" aria-hidden="true"></div></div></div>
+   )}</div><div id="sidebar-content" role="tabpanel" aria-labelledby="tab-outline"></div><div id="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Largura da barra lateral" aria-controls="reader-sidebar" aria-valuemin="${SIDEBAR_WIDTH.min}" aria-valuemax="${SIDEBAR_WIDTH.max}" aria-valuenow="${SIDEBAR_WIDTH.fallback}" aria-valuetext="${SIDEBAR_WIDTH.fallback} px" tabindex="0" title="Arraste para mudar a largura, ou use as setas"></div></aside><div id="viewer-wrap"><div id="viewer-container" tabindex="0" role="region" aria-label="Páginas do documento"><div id="pdf-viewer" class="pdfViewer"></div></div><div id="jump-pill" class="jump-pill" role="group" aria-label="Voltar ou avançar entre posições da leitura" data-side="back" hidden><button id="jump-back" class="jump-go" type="button">${icon('undo')}<span id="jump-back-text" class="jump-text"></span></button><button id="jump-forward" class="jump-go" type="button" hidden><span id="jump-forward-text" class="jump-text"></span>${icon('arrow')}</button><button id="jump-dismiss" class="jump-dismiss" type="button" title="Dispensar" aria-label="Dispensar">${icon('close')}</button></div><span id="jump-status" class="sr-only" role="status" aria-live="polite"></span><span id="selection-status" class="sr-only" role="status" aria-live="polite"></span><span id="quiet-status" class="sr-only" role="status" aria-live="polite"></span><div id="reader-loading" class="loading-state" role="status" hidden><span class="spinner"></span><p>Abrindo seu PDF…</p><button id="cancel-loading" class="text-button">Voltar à biblioteca</button></div><div id="warm-overlay" aria-hidden="true"></div><div id="brightness-overlay" aria-hidden="true"></div></div></div>
  <footer class="reader-footer"><span class="reading-status"><span id="reading-progress"></span><span id="reading-time" title="Estimativa pelo seu ritmo de leitura neste documento" hidden></span></span><span id="reading-label">Leitura local</span><button id="reader-goal" class="text-button" title="Configurar meta e ver progresso de hoje">Meta diária</button><button id="add-note" class="text-button">${icon('note')} Adicionar nota</button></footer>
  <div id="reading-line" class="reading-line" aria-hidden="true"><i></i></div>
 </section>

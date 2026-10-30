@@ -1,6 +1,7 @@
 // Where a floating panel goes, as numbers only, so that the rule can be tested without a window.
-// The panel opens under its anchor when it fits and above it when it does not. It never leaves
-// the window (`margin` on every side) and, as a last resort, it scrolls inside.
+// The panel opens under its anchor when it fits and above it when it does not (the other way round,
+// for a panel that asks for `prefer: 'above'`). It never leaves the window (`margin` on every side)
+// and, as a last resort, it scrolls inside.
 export const POPOVER = Object.freeze({
   margin: 8,
   gap: 8,
@@ -20,6 +21,8 @@ export type PopoverInput = {
   align?: 'start' | 'end';
   // The distance between anchor and panel. A menu at the pointer has none.
   gap?: number;
+  // The side that is tried first. Below, unless the panel asks for above.
+  prefer?: 'below' | 'above';
 };
 export type PopoverPlacement = {
   left: number;
@@ -56,8 +59,10 @@ export function placePopover(input: PopoverInput): PopoverPlacement {
   const above = anchor.top - gap - margin;
   let side: PopoverPlacement['side'];
   let space: number;
-  if (height <= below) [side, space] = ['below', below];
+  const higher = input.prefer === 'above';
+  if (!higher && height <= below) [side, space] = ['below', below];
   else if (height <= above) [side, space] = ['above', above];
+  else if (height <= below) [side, space] = ['below', below];
   else [side, space] = below >= above ? ['below', below] : ['above', above];
   // No usable room on either side: the panel covers the anchor rather than shrink to nothing.
   if (space < Math.min(height, minHeight)) [side, space] = ['window', room.height];

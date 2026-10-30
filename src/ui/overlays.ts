@@ -3,7 +3,13 @@ import { isTypedCharacter, menuIndexAfterKey, typeaheadIndex } from './menu-navi
 import { placePopover, pointBox } from './popover-position';
 import { toast, placeToasts } from './toast-stack';
 import { GENERIC_ERROR, describeError } from './error-text';
-export { toast, dismissNotices, type ToastAction, type ToastOptions } from './toast-stack';
+export {
+  toast,
+  announce,
+  dismissNotices,
+  type ToastAction,
+  type ToastOptions,
+} from './toast-stack';
 // An error that the reader was already told about: whoever catches it further up has nothing
 // to add, so `fail` ignores it and the same failure is not shown twice.
 export class ReportedError extends Error {}

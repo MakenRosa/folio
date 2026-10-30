@@ -88,7 +88,7 @@ const DETAILS = [
   ],
   [
     'Barra lateral do leitor',
-    'A barra lateral (tecla S) reúne o sumário, que destaca a seção que você está lendo, as miniaturas das páginas, as marcas (o botão de cada linha remove a marca, com Desfazer) e as notas. Arraste a borda dela, ou use as setas quando a borda estiver selecionada, para mudar a largura. Ela abre do jeito que você a deixou.',
+    'A barra lateral (tecla S) reúne o sumário, que destaca a seção que você está lendo (Tab entra na lista e sai dela; as setas andam pelos itens, e → e ← abrem e fecham as seções), as miniaturas das páginas, as marcas (o botão de cada linha remove a marca, com Desfazer) e as notas. Arraste a borda dela, ou use as setas quando a borda estiver selecionada, para mudar a largura. Ela abre do jeito que você a deixou.',
   ],
 ];
 const section = ([title, text]: string[]) => `<h3>${title}</h3><p>${text}</p>`;

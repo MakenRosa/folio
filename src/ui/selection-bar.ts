@@ -2,7 +2,7 @@ import { icon } from '../icons';
 import { COLOR_LABELS, NOTE_COLORS, rememberedColor } from '../reading/note-colors';
 import type { SelectionCapture } from '../reading/selection-capture';
 import type { NoteColor } from '../types';
-import { placePopover } from './popover-position';
+import { POPOVER, placePopover } from './popover-position';
 
 export type SelectionBarOptions = {
   // The empty bar that is in the page (`#highlight-bar`), and the reading surface it belongs to.
@@ -25,7 +25,7 @@ export type SelectionBarOptions = {
 // keyboard or any other way that does not end with the mouse button.
 const SETTLE = 250;
 
-// The small bar that floats near the end of a passage that is selected in the pages: to highlight
+// The small bar that floats near a passage that is selected in the pages: to highlight
 // it in one of four colours, to annotate it, or to copy it. It does not take the selection or the
 // focus from the page (the bar's buttons act on the mousedown that would have taken them), so the
 // text stays selected while it is used. It goes away when the selection does, when the page
@@ -156,9 +156,10 @@ export class SelectionBar {
     }
   }
 
-  // Under the last line of the passage, at its end; above the first line when there is no room
-  // below; and, when the passage fills the screen, at the foot of the reading surface. Never out of
-  // the window (see popover-position.ts).
+  // Above the first line of the passage, over the text that comes before it, when the reading surface
+  // has room there: the text after the passage is what is read next, and the bar does not hide it.
+  // Without that room it goes under the last line, at its end; and, when the passage fills the
+  // screen, at the foot of the reading surface. Never out of the window (see popover-position.ts).
   private show(capture: SelectionCapture) {
     const { bar, container } = this.options;
     const area = container.getBoundingClientRect();
@@ -187,20 +188,26 @@ export class SelectionBar {
       width: root.clientWidth || innerWidth,
       height: root.clientHeight || innerHeight,
     };
-    // The bar is centred on the end of the passage; the placement keeps it inside the window.
-    const centre = Math.min(Math.max(last.right, area.left), area.right) - box.width / 2;
+    const gap = 6;
+    // Room above the first line, inside the reading surface and not over the bars that are above it.
+    const above = first.top - Math.max(area.top, POPOVER.margin) >= box.height + gap;
+    // Centred on the first line when it goes above, and on the end of the passage when it goes under;
+    // the placement keeps it inside the window.
+    const middle = above ? (first.left + first.right) / 2 : last.right;
+    const centre = Math.min(Math.max(middle, area.left), area.right) - box.width / 2;
     const place = placePopover({
       anchor: {
         left: centre,
         right: centre + box.width,
-        top: Math.max(first.top, area.top),
-        bottom: Math.min(last.bottom, area.bottom),
+        top: above ? first.top : Math.max(first.top, area.top),
+        bottom: above ? first.top : Math.min(last.bottom, area.bottom),
       },
       width: box.width,
       height: box.height,
       viewport,
       align: 'start',
-      gap: 6,
+      gap,
+      prefer: above ? 'above' : 'below',
     });
     if (place.side === 'window') {
       bar.style.left = `${Math.max(8, Math.min(viewport.width - 8 - box.width, area.left + (area.width - box.width) / 2))}px`;

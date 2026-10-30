@@ -66,8 +66,10 @@ const cardCover = (b: Book, removed: boolean, content: string) =>
   removed
     ? `<div class="book-open">${content}</div>`
     : `<button class="book-open" data-open="${b.id}" tabindex="-1" aria-label="Ler ${esc(b.title)}" aria-describedby="${esc(describedBy(b))}">${content}</button>`;
-const favoriteLabel = (b: Book) =>
-  `${b.favorite ? 'Remover dos favoritos' : 'Favoritar'} ${b.title}`;
+// The star of a card, as the one of the reader: the name stays ("Favoritar {título}") and `aria-pressed`
+// says the state. The tooltip says what a click does now.
+const favoriteLabel = (b: Book) => `Favoritar ${b.title}`;
+const favoriteTitle = (b: Book) => (b.favorite ? 'Remover dos favoritos' : 'Favoritar');
 const cardOf = (id: string) =>
   $('#books').querySelector<HTMLElement>(`[data-book="${CSS.escape(id)}"]`);
 // One tag of the side bar. The list is drawn again only when a tag, a spelling or a count
@@ -114,10 +116,11 @@ const activeButton = () => {
   return (card && mainButton(card)) ?? mainButton($('#books'));
 };
 let boundGrid: HTMLElement | null = null;
-const relabel = (button: HTMLElement, text: string) => {
-  button.setAttribute('aria-label', text);
-  button.title = text;
-  button.querySelector('span')!.textContent = text;
+// A toggle of the selection bar keeps its name and its text; the state is `aria-pressed` (and the look
+// that goes with it), and the tooltip says what the click does now.
+const setToggle = (button: HTMLElement, pressed: boolean, action: string) => {
+  button.setAttribute('aria-pressed', String(pressed));
+  button.title = action;
 };
 // The bar of the selection, and the ticks of the cards, from `selected`. It does not draw the list
 // again: a click on a card only changes these.
@@ -143,13 +146,13 @@ export function updateSelection(state: Pick<LibraryViewState, 'snapshot' | 'filt
   for (const id of ['favorite', 'finish', 'tag', 'remove']) $(`#select-${id}`).hidden = trash;
   for (const id of ['restore', 'purge']) $(`#select-${id}`).hidden = !trash;
   if (chosen.length && !trash) {
-    relabel(
-      $('#select-favorite'),
-      chosen.every((b) => b.favorite) ? 'Remover dos favoritos' : 'Favoritar',
-    );
-    relabel(
+    const favorite = chosen.every((b) => b.favorite),
+      finished = chosen.every((b) => b.finished);
+    setToggle($('#select-favorite'), favorite, favorite ? 'Remover dos favoritos' : 'Favoritar');
+    setToggle(
       $('#select-finish'),
-      chosen.every((b) => b.finished) ? 'Marcar como não concluído' : 'Marcar como concluído',
+      finished,
+      finished ? 'Marcar como não concluído' : 'Marcar como concluído',
     );
   }
   // A bar that goes away must not take the focus with it.
@@ -176,6 +179,7 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
     reading: all.filter((b) => b.lastOpened && !b.finished).length,
     favorites: all.filter((b) => b.favorite).length,
     finished: all.filter((b) => b.finished).length,
+    trash: snapshot.trash.length,
   };
   Object.entries(counts).forEach(([key, v]) => ($(`#count-${key}`).textContent = String(v)));
   renderTagNav(known);
@@ -268,7 +272,7 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
   grid.innerHTML = books
     .map(
       (b) =>
-        `<article class="book-card" data-book="${b.id}"><input type="checkbox" class="select-check" data-select="${b.id}" tabindex="-1" aria-label="Selecionar ${esc(b.title)}">${cardCover(b, filter === 'trash', `${cover(b, snapshot.folder)}${bookInfo(b, hits.get(b.id))}`)}<div class="card-actions">${filter === 'trash' ? `<button class="text-button" data-restore="${b.id}" tabindex="-1">${icon('undo')} Restaurar</button><button class="icon-button" data-menu="${b.id}" tabindex="-1" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>` : `<button class="icon-button ${b.favorite ? 'selected' : ''}" data-favorite="${b.id}" tabindex="-1" title="${b.favorite ? 'Remover dos favoritos' : 'Favoritar'}" aria-label="${esc(favoriteLabel(b))}">${icon('star')}</button><button class="icon-button" data-menu="${b.id}" tabindex="-1" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}</div></article>`,
+        `<article class="book-card" data-book="${b.id}"><input type="checkbox" class="select-check" data-select="${b.id}" tabindex="-1" aria-label="Selecionar ${esc(b.title)}">${cardCover(b, filter === 'trash', `${cover(b, snapshot.folder)}${bookInfo(b, hits.get(b.id))}`)}<div class="card-actions">${filter === 'trash' ? `<button class="text-button" data-restore="${b.id}" tabindex="-1">${icon('undo')} Restaurar</button><button class="icon-button" data-menu="${b.id}" tabindex="-1" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>` : `<button class="icon-button ${b.favorite ? 'selected' : ''}" data-favorite="${b.id}" tabindex="-1" title="${favoriteTitle(b)}" aria-label="${esc(favoriteLabel(b))}" aria-pressed="${!!b.favorite}">${icon('star')}</button><button class="icon-button" data-menu="${b.id}" tabindex="-1" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}</div></article>`,
     )
     .join('');
   $('#empty').innerHTML = books.length

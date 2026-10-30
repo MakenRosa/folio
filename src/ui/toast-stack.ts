@@ -18,7 +18,9 @@ const SHORT = 4500,
   LONG = 9000,
   // A message that was held by the pointer or the focus stays at least this long after it is let go.
   GRACE = 1000,
-  LEAVE = 140;
+  LEAVE = 140,
+  // How long a quiet message stays in its region before it is emptied.
+  QUIET = 6000;
 
 type Entry = {
   el: HTMLElement;
@@ -123,6 +125,20 @@ function bind(host: HTMLElement) {
     e.stopPropagation();
     dismiss(t);
   });
+}
+
+// A message for a screen reader only, for a result that the screen already shows (a highlight in the
+// page, a note's card in the side bar): the box of `toast` would say it a second time. The region is
+// emptied first, so that the same text twice in a row is heard twice, and again once it was heard.
+let quietTimer: ReturnType<typeof setTimeout> | undefined;
+export function announce(message: string) {
+  const region = $('#quiet-status');
+  clearTimeout(quietTimer);
+  region.textContent = '';
+  quietTimer = setTimeout(() => {
+    region.textContent = message;
+    quietTimer = setTimeout(() => (region.textContent = ''), QUIET);
+  }, 60);
 }
 
 // Shows a message. Several can be on screen, each with its own action and its own clock.

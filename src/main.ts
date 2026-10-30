@@ -4,6 +4,7 @@ import { $, documents, esc, size, ib } from './ui/dom';
 import { appShell, SAVE_STATUS } from './ui/shell';
 import {
   toast,
+  announce,
   dismissNotices,
   fail,
   failing,
@@ -48,7 +49,7 @@ import { copyText } from './ui/clipboard';
 import { bindReadingComfort, syncReadingComfort } from './ui/reading-comfort';
 import { showGoals, goalLabel } from './ui/goals-dialog';
 import { showHistory } from './ui/history-dialog';
-import { OutlineView, type OutlineState } from './ui/outline-view';
+import { OutlineView, NO_DESTINATION, type OutlineState } from './ui/outline-view';
 import { ThumbnailList } from './ui/thumbnail-list';
 import { bindSidebarResizer } from './ui/sidebar-resizer';
 import { archivedAsBook } from './library/archive';
@@ -171,7 +172,7 @@ const jumpPill = new JumpPill({
   back: () => stepJump('back'),
   forward: () => stepJump('forward'),
 });
-// The bar near the end of a passage that is selected in the pages: highlight, annotate, copy.
+// The bar near a passage that is selected in the pages: highlight, annotate, copy.
 const selectionBar = new SelectionBar({
   bar: $('#highlight-bar'),
   container: $('#viewer-container'),
@@ -1116,8 +1117,11 @@ function updateReaderMeta() {
   if (document.activeElement !== pageInput) pageInput.value = String(current.page);
   $('#page-total').textContent = `/ ${current.pages || '…'}`;
   $<HTMLInputElement>('#page-number').max = String(current.pages || 1);
+  // The name stays and `aria-pressed` tells the state, as on the card of the library; the tooltip
+  // says what the click does now.
   $('#reader-favorite').classList.toggle('selected', current.favorite);
   $('#reader-favorite').setAttribute('aria-pressed', String(current.favorite));
+  $('#reader-favorite').title = current.favorite ? 'Remover dos favoritos' : 'Favoritar documento';
   $('#bookmark').classList.toggle('selected', current.bookmarks.includes(current.page));
   $('#bookmark').setAttribute('aria-pressed', String(current.bookmarks.includes(current.page)));
   const kindle = prefs.readingMode === 'kindle',
@@ -1366,15 +1370,12 @@ async function closeReader() {
 }
 // Alt + ← and Alt + →, the side buttons of the mouse and the pill: one step along the positions
 // that the jumps of this document left. With nowhere to go the pill goes, and a message says why.
+// The message only says that there is no position: leaving the document is another key's business.
 function stepJump(direction: 'back' | 'forward') {
   if (!reader || loading) return;
   if (direction === 'back' ? reader.back() : reader.forward()) return;
   jumpPill.hide();
-  toast(
-    direction === 'back'
-      ? 'Nenhuma posição anterior. Ctrl + W volta à biblioteca.'
-      : 'Nenhuma posição à frente.',
-  );
+  toast(direction === 'back' ? 'Nenhuma posição anterior.' : 'Nenhuma posição à frente.');
 }
 function restartReading() {
   if (!reader || !current) return;
@@ -1484,9 +1485,12 @@ function renderSidebar(only?: SidebarTab) {
     else if (!reader.outline.length)
       content.innerHTML = `<div class="side-empty">${icon('list')}<h3>Sem sumário neste PDF</h3><p>Use o número da página, as miniaturas ou a busca para navegar.</p></div>`;
     else
-      outlineView = new OutlineView(content, reader.outline, outlineState, (entry) =>
-        reader?.destination(entry.dest),
-      );
+      outlineView = new OutlineView(content, reader.outline, outlineState, (entry) => {
+        // An item that points nowhere in this document (a broken or external destination) is drawn as
+        // unavailable; the click says why it does nothing.
+        if (entry.page === null) toast(NO_DESTINATION);
+        else reader?.destination(entry.dest);
+      });
   } else if (tab === 'pages') {
     if (!reader || !ready) content.innerHTML = waiting('Abrindo as páginas…');
     else thumbnails = new ThumbnailList(content, reader, (page) => reader?.jumpTo(page));
@@ -1598,9 +1602,13 @@ function highlightSelection(color: NoteColor = rememberedColor()) {
   }));
   selectionBar.hide();
   getSelection()?.removeAllRanges();
+  // The highlight shows itself in the page and its card in the Notas tab: no box says it again, and a
+  // screen reader is told in the quiet region.
   void changeNotes((notes) => [...notes, ...made])
     .then(() =>
-      toast(made.length === 1 ? 'Trecho realçado.' : `Trecho realçado em ${made.length} páginas.`),
+      announce(
+        made.length === 1 ? 'Trecho realçado.' : `Trecho realçado em ${made.length} páginas.`,
+      ),
     )
     .catch(failing('Não foi possível realçar o trecho.'));
   return true;
@@ -1747,7 +1755,12 @@ function editNote(existing?: Note, picked?: SelectionCapture | null) {
       if (note.color) rememberColor(note.color);
       // A highlight shows itself in the page; a note without a place is shown in the side bar.
       if (!rects.length) toggleSidebar('notes');
-      toast('Nota salva.');
+      // What the screen already shows is not said again in a box: the highlight that a new note makes,
+      // or the card of the note in the Notas tab. A screen reader hears it in the quiet region. Only
+      // the text of a highlight that was edited with that tab out of view has nothing to show for it.
+      const shown = !existing || (!$('#reader-sidebar').hidden && prefs.sidebarTab === 'notes');
+      if (shown) announce('Nota salva.');
+      else toast('Nota salva.');
     } catch (e) {
       fail(e, 'Não foi possível salvar a nota.');
     }

@@ -52,6 +52,11 @@
   --paper-light: #fffefa;
   --paper-sepia: #d9cfbd;
   --paper-dark: #171b1b;
+  /* The sepia paper itself: the filter that the page of the reader (and its thumbnail) goes through,
+     and the colour that a white page comes out with, which the sample in the preferences shows. They
+     go together: white through the filter is the colour, so change one and work out the other. */
+  --paper-sepia-filter: brightness(0.85) sepia(0.39) brightness(0.98);
+  --paper-sepia-page: #f1e5cf;
   /* The height of the top of the library, which stays in view while the list scrolls. */
   --library-top-h: 87px;
   /* The room at the sides of the bars of the reader, so that their edges line up. */
@@ -470,9 +475,11 @@ kbd {
   width: 100%;
   font-size: var(--fs-body);
 }
+/* The ring of any other control (2 px in the accent), drawn around the box and not on the field. */
 .search-input:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--soft);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .search-input svg {
   width: 16px;
@@ -573,9 +580,10 @@ kbd {
 }
 .collection-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px 14px;
   margin: 0 0 21px;
 }
 .collection-toolbar > span {
@@ -589,11 +597,22 @@ kbd {
   align-items: center;
   gap: 16px;
 }
-.collection-toolbar select {
-  border: 0;
-  background: none;
+/* The order of the list: a name that is seen, and a field like the others (the line of the fields),
+   as tall as the group of the view next to it. */
+.sort-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: var(--fs-small);
   color: var(--muted);
+}
+.sort-field label {
+  white-space: nowrap;
+}
+.collection-toolbar select {
+  height: 35px;
+  padding: 0 28px 0 10px;
+  font-size: var(--fs-small);
 }
 .segmented {
   display: flex;
@@ -1126,6 +1145,16 @@ button.book-open:hover .book-cover {
 .selection-action.danger {
   color: var(--danger);
 }
+/* A toggle that is on (all that are selected are favorites, or finished): the name stays and the
+   look says the state, as the star of the card does. */
+.selection-action[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--soft);
+  border-color: var(--accent);
+}
+.selection-action[aria-pressed='true'] svg {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+}
 :root[data-selecting] #toast {
   bottom: 84px;
 }
@@ -1580,7 +1609,7 @@ dialog p strong {
   background: var(--paper-sepia);
 }
 :root[data-paper='sepia'] .pdfViewer .canvasWrapper {
-  filter: sepia(0.45) brightness(0.97);
+  filter: var(--paper-sepia-filter);
 }
 #warm-overlay {
   pointer-events: none;
@@ -1828,6 +1857,15 @@ dialog p strong {
   font-weight: 600;
   box-shadow: inset 3px 0 0 var(--accent);
 }
+/* An item that points nowhere in this document looks unavailable and has no hover. The keyboard still
+   reaches it, and pressing it says why it does nothing. */
+.outline-item[aria-disabled='true'] {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+.outline-item[aria-disabled='true']:hover {
+  background: none;
+}
 .thumb-list {
   list-style: none;
   margin: 0;
@@ -1842,6 +1880,11 @@ dialog p strong {
   border-radius: 0;
   font-size: var(--fs-small);
   color: var(--muted);
+}
+/* The list scrolls and the thumbnail takes its whole width: a ring outside it would be cut at the
+   sides, so it is drawn inside the button. */
+.thumb:focus-visible {
+  outline-offset: -2px;
 }
 .thumb-frame {
   display: block;
@@ -1860,7 +1903,7 @@ dialog p strong {
   filter: invert(0.91) hue-rotate(180deg);
 }
 :root[data-paper='sepia'] .thumb-frame canvas {
-  filter: sepia(0.45) brightness(0.97);
+  filter: var(--paper-sepia-filter);
 }
 .thumb.current {
   background: var(--soft);
@@ -2200,8 +2243,8 @@ input[type='range'] {
   color: #e5e4df;
 }
 #paper-sample[data-paper='sepia'] {
-  background: #eee2c9;
-  color: #554835;
+  background: var(--paper-sepia-page);
+  color: #4a3d2b;
 }
 .switch-row {
   border-top: 1px solid var(--line);
