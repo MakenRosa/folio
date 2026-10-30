@@ -21,6 +21,13 @@ import {
   captureSelection as readSelection,
   type SelectionCapture,
 } from './reading/selection-capture';
+import {
+  extendSelection,
+  isSelectionKey,
+  selectionEnd,
+  visibleArea,
+  type Extension,
+} from './reading/selection-keys';
 type Options = {
   container: HTMLElement;
   viewer: HTMLElement;
@@ -39,6 +46,8 @@ type Options = {
   onPassword: (incorrect: boolean) => Promise<string | null>;
   // A highlight, or the mark of a note, was clicked (see reading/note-layer.ts).
   onNote: NoteOpen;
+  // The keyboard grew the selection of the pages (see `extendSelection`).
+  onSelect: () => void;
 };
 export class Reader {
   get chapterStarts() {
@@ -495,6 +504,40 @@ export class Reader {
       return view?.pdfPage ? view.viewport : null;
     });
   }
+  // Shift + arrows: the selection of the pages grows by a word (← →) or by a line (↑ ↓), and starts at
+  // the first text in view when there is none (see reading/selection-keys.ts). Its end is kept in
+  // view: the page scrolls to it, and the Kindle turns the screen. Says what came of it.
+  extendSelection(key: string): Extension {
+    if (!this.ready || this.dead || !isSelectionKey(key)) return 'edge';
+    const result = extendSelection(this.options.container, key);
+    if (result === 'moved') {
+      this.showSelectionEnd();
+      this.options.onSelect();
+    }
+    return result;
+  }
+  private showSelectionEnd() {
+    const selection = getSelection(),
+      end = selection && selectionEnd(selection);
+    if (!end) return;
+    const c = this.options.container,
+      area = visibleArea(c);
+    // The end of the selection is brought to a little inside the edge, so that the line it is on is
+    // seen with its neighbours. The Kindle does not scroll up and down: it turns the screen, when
+    // the end is out of this one.
+    const marginY = Math.min(48, (area.bottom - area.top) / 4),
+      marginX = Math.min(48, (area.right - area.left) / 4);
+    let down = 0;
+    if (this.kindle) {
+      if (end.bottom > area.bottom + 1) this.turn(1);
+      else if (end.top < area.top - 1) this.turn(-1);
+    } else if (end.bottom > area.bottom - marginY) down = end.bottom - (area.bottom - marginY);
+    else if (end.top < area.top + marginY) down = end.top - (area.top + marginY);
+    let right = 0;
+    if (end.right > area.right - marginX) right = end.right - (area.right - marginX);
+    else if (end.left < area.left + marginX) right = end.left - (area.left + marginX);
+    if (down || right) c.scrollBy({ left: right, top: down });
+  }
   // A note chosen on purpose: its highlight, with a few lines above it in view, or its page when
   // it has no highlight. Like any other chosen place, it keeps the way back.
   jumpToNote(note: Note) {
@@ -625,10 +668,11 @@ export class Reader {
     const scale = Math.min(5, Math.max(0.25, this.viewer.currentScale * Math.pow(1.15, direction)));
     this.zoom(String(Math.round(scale * 100) / 100));
   }
-  rotate() {
+  // A quarter turn clockwise; 270 is the one back.
+  rotate(degrees = 90) {
     if (this.ready) {
       const page = this.page;
-      this.viewer.pagesRotation = (this.viewer.pagesRotation + 90) % 360;
+      this.viewer.pagesRotation = (this.viewer.pagesRotation + degrees) % 360;
       this.goTo(page);
     }
   }

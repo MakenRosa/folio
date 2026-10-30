@@ -51,6 +51,13 @@ tela atravessa a divisão entre duas páginas do PDF.
   biblioteca** (com **Desfazer** para todos) e **Limpar seleção**. Em Removidos, as ações são
   **Restaurar** e **Excluir definitivamente**. A seleção vale para o que está na tela: trocar de
   filtro a limpa, e uma busca ou um filtro que esconde um cartão o tira da seleção.
+- **Cartões e calendário pelo teclado.** Os cartões da biblioteca são uma parada de Tab só (o cartão
+  ativo; nele, Tab percorre o botão do documento, o favorito e as opções). As setas movem o foco entre
+  os cartões (na grade, nas quatro direções, pela posição real na tela; na lista, ↑ e ↓), Home e End
+  vão ao primeiro e ao último, Enter abre e Espaço marca o cartão (Shift + Espaço, o intervalo). No
+  calendário do histórico os dias também são uma parada de Tab só: ← → andam um dia, ↑ ↓ uma semana,
+  Home e End vão ao começo e ao fim da semana, Page Up e Page Down trocam de mês, e Enter ou Espaço
+  escolhem o dia.
 - **Esvaziar Removidos.** O botão no topo de Removidos e **Excluir definitivamente** no menu de cada
   item excluem, depois de uma confirmação que mostra quantos documentos são e quanto espaço
   liberam, as cópias de `pdfs/` e as capas de `covers/`. O catálogo é gravado primeiro, sem os
@@ -62,7 +69,11 @@ tela atravessa a divisão entre duas páginas do PDF.
   barra pequena aparece junto ao fim da seleção, sem cobri-la nem sair da janela: **Realçar** em
   amarelo, verde, azul ou rosa, **Adicionar nota** (abre a nota com a citação e as linhas do trecho) e
   **Copiar**. Ela some ao desfazer a seleção, ao rolar, ao clicar fora e com Esc. Com um trecho
-  selecionado, **H** realça na última cor usada e **N** adiciona uma nota. O realce é desenhado sobre a página
+  selecionado, **H** realça na última cor usada e **N** adiciona uma nota (sem trecho, avisam como
+  selecioná-lo). Pelo teclado, com o foco nas páginas, **Shift + ← →** cresce a seleção por palavra
+  e **Shift + ↑ ↓** por linha, na rolagem e no Kindle (as setas sem Shift continuam virando páginas ou
+  telas); sem seleção, ela começa no primeiro texto à vista, fica no texto das páginas e a tela
+  acompanha o fim dela. O realce é desenhado sobre a página
   em uma camada que não atrapalha a seleção nem os links, acompanha o zoom, a rotação, as duas
   páginas lado a lado, o modo Kindle e a junção de margens, e é legível nos papéis claro, sépia e
   escuro. Uma nota com texto ganha um pequeno ícone de nota na margem. Clicar num realce (ou no

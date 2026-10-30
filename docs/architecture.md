@@ -301,6 +301,16 @@ barra de ações sem redesenhar a lista. A seleção (um `Set` de ids em `main.t
 desenho para o que está na tela, e é limpa ao trocar de filtro e ao abrir um livro. Ctrl + A e Esc
 ficam em `shortcuts.ts`. Os diálogos são `tags-dialog.ts` e `purge-dialog.ts`.
 
+Os cartões seguem o roving tabindex do WAI-ARIA: todos os botões nascem com `tabindex="-1"`, e
+`activateCard` (`library-view.ts`) dá 0 aos do cartão ativo (abrir, favorito e opções; em Removidos,
+restaurar e opções), que é o que recebeu o foco por último (`focusin` na grade) ou, depois de um
+desenho, o mesmo cartão se ele continua na tela e senão o primeiro. A caixa de seleção fica fora da
+ordem de Tab. `grid.onkeydown` leva as setas, Home e End a `cardAfterKey`
+(`src/library/card-navigation.ts`, sem DOM: recebe as caixas dos cartões e escolhe pela posição, não
+pela contagem de colunas) e trata o Espaço no botão principal como a caixa do cartão. O calendário do
+histórico usa o mesmo padrão, com `calendarStep` (`src/reading/history.ts`) decidindo o dia de
+cada tecla e recusando dias futuros e meses sem registro.
+
 **Importação pronta.** `src/library/queue.ts` processa um PDF por vez e para quando um livro é aberto
 (o trabalho em curso é cancelado e volta ao início da fila; retomar espera 300 ms). Cada livro é
 tentado uma vez por sessão: senha ou arquivo inválido são ignorados em silêncio. `enrich.ts` abre
@@ -346,7 +356,10 @@ que o PDF.js apaga o que não conhece ao redesenhar. A camada ignora o ponteiro;
 é encontrado pela posição (`getBoundingClientRect` das marcas), e só o marcador das notas com texto é
 um botão. A mistura é `multiply` nos papéis claro e sépia e normal, com cores translúcidas, no escuro,
 que inverte as cores do canvas. `Reader.jumpToNote` leva ao realce com `scrollPageIntoView` e entra no
-histórico de saltos (`leave` e `arrive`). A barra flutuante é `ui/selection-bar.ts` (posicionada por
+histórico de saltos (`leave` e `arrive`). Shift + setas estendem a seleção (`reading/selection-keys.ts`, com `Selection.modify`; o foco
+sempre fica numa camada `.textLayer`, e um passo que cairia fora dela, como na camada dos links entre
+duas páginas, segue até o próximo texto ou é desfeito), e `Reader.extendSelection` mantém o fim dela
+à vista (rolagem; no Kindle, `turn`). A barra flutuante é `ui/selection-bar.ts` (posicionada por
 `placePopover`), o menu é `ui/note-menu.ts` (o `popover` com `menu: true`) e a aba é `ui/notes-panel.ts`.
 
 `export_notes(id, destination, offsetMinutes?)` gera o Markdown com `notes::markdown` (mesma ordem de

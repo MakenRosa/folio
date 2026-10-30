@@ -15,6 +15,10 @@ export type SelectionBarOptions = {
   highlight: (color: NoteColor) => void;
   annotate: () => void;
   copy: () => void;
+  // The live region that tells a screen reader that a passage is selected, and what can be done with
+  // it (the bar is not read out when it appears); `hint` is what it says.
+  status: HTMLElement;
+  hint: () => string;
 };
 
 // After a selection that ends this long (milliseconds), the bar shows, for a selection made by the
@@ -28,10 +32,12 @@ const SETTLE = 250;
 // scrolls, or the window changes, when the reader clicks elsewhere, and with Esc (see shortcuts.ts).
 export class SelectionBar {
   private dragging = false;
+  private announced = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private options: SelectionBarOptions) {
     const { bar, container } = options;
+    // The tooltip of the colour that H uses gets "(H)" each time the bar is shown (see `show`).
     const swatch = (color: NoteColor) =>
       `<button type="button" class="hl-swatch" data-color="${color}" aria-label="Realçar em ${COLOR_LABELS[color].toLowerCase()}" title="Realçar em ${COLOR_LABELS[color].toLowerCase()}"><span aria-hidden="true"></span></button>`;
     bar.innerHTML = `<span class="hl-group" role="group" aria-label="Realçar">${NOTE_COLORS.map(swatch).join('')}</span><span class="hl-divider" aria-hidden="true"></span><button type="button" class="hl-action" data-action="note" title="Adicionar nota ao trecho (N)">${icon('note')}<span>Adicionar nota</span></button><button type="button" class="hl-action" data-action="copy" title="Copiar o texto selecionado">${icon('copy')}<span>Copiar</span></button>`;
@@ -69,8 +75,10 @@ export class SelectionBar {
       if (this.dragging) return;
       // A selection that went away takes the bar with it at once; one that came needs a moment
       // to be the one the reader meant.
-      if (!this.selecting()) this.hide();
-      else this.schedule(SETTLE);
+      if (!this.selecting()) {
+        this.hide();
+        this.forget();
+      } else this.schedule(SETTLE);
     });
     document.addEventListener(
       'scroll',
@@ -113,7 +121,22 @@ export class SelectionBar {
     const had = this.visible || this.selecting();
     this.hide();
     if (this.selecting()) getSelection()?.removeAllRanges();
+    this.forget();
     return had;
+  }
+
+  // The keyboard moved the end of the selection, and the page went with it: the bar is put away at
+  // once (a scroll would take it, and with it the wait for it to come back) and comes again near the
+  // new end.
+  follow() {
+    this.hide();
+    this.schedule(SETTLE);
+  }
+
+  // The next passage that is selected is announced again.
+  private forget() {
+    this.announced = false;
+    this.options.status.textContent = '';
   }
 
   private schedule(delay: number) {
@@ -124,8 +147,13 @@ export class SelectionBar {
   private update() {
     if (this.dragging || !this.options.enabled() || !this.selecting()) return this.hide();
     const capture = this.options.capture();
-    if (capture) this.show(capture);
-    else this.hide();
+    if (!capture) return this.hide();
+    this.show(capture);
+    // Said once for each passage: the bar that comes back as the selection grows is not news.
+    if (!this.announced && this.visible) {
+      this.announced = true;
+      this.options.status.textContent = this.options.hint();
+    }
   }
 
   // Under the last line of the passage, at its end; above the first line when there is no room
@@ -144,9 +172,14 @@ export class SelectionBar {
     const first = lines[0],
       last = lines[lines.length - 1];
     // The colour that the shortcut would use is marked.
+    // Its tooltip says the key: H highlights in that colour, and in no other.
     const remembered = rememberedColor();
-    for (const swatch of bar.querySelectorAll<HTMLElement>('.hl-swatch'))
-      swatch.toggleAttribute('data-last', swatch.dataset.color === remembered);
+    for (const swatch of bar.querySelectorAll<HTMLElement>('.hl-swatch')) {
+      const last = swatch.dataset.color === remembered,
+        name = swatch.getAttribute('aria-label') ?? '';
+      swatch.toggleAttribute('data-last', last);
+      swatch.title = last ? `${name} (H)` : name;
+    }
     bar.hidden = false;
     const box = bar.getBoundingClientRect();
     const root = document.documentElement;

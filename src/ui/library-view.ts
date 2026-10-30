@@ -4,6 +4,7 @@ import { icon } from '../icons';
 import { readingProgress } from '../reading/progress';
 import { formatDuration, remainingTime, secondsPerPage } from '../reading/pace';
 import { searchBook, type SearchHit } from '../library/search';
+import { cardAfterKey } from '../library/card-navigation';
 import { pruneSelection } from '../library/selection';
 import { filterTag, hasTag, tagCounts, tagFilter, tagsOf, type TagCount } from '../library/tags';
 import { $, documents, esc, size } from './dom';
@@ -64,7 +65,7 @@ function bookInfo(b: Book, hit: SearchHit | null = null) {
 const cardCover = (b: Book, removed: boolean, content: string) =>
   removed
     ? `<div class="book-open">${content}</div>`
-    : `<button class="book-open" data-open="${b.id}" aria-label="Ler ${esc(b.title)}" aria-describedby="${esc(describedBy(b))}">${content}</button>`;
+    : `<button class="book-open" data-open="${b.id}" tabindex="-1" aria-label="Ler ${esc(b.title)}" aria-describedby="${esc(describedBy(b))}">${content}</button>`;
 const favoriteLabel = (b: Book) =>
   `${b.favorite ? 'Remover dos favoritos' : 'Favoritar'} ${b.title}`;
 const cardOf = (id: string) =>
@@ -91,6 +92,28 @@ function renderTagNav(known: TagCount[]) {
       .querySelector<HTMLElement>(`[data-filter="${CSS.escape(focused)}"]`)
       ?.focus({ preventScroll: true });
 }
+// The cards of the library are one stop of Tab (the roving tabindex of the WAI-ARIA Authoring
+// Practices): the buttons of the active card (open, star, options; in Removidos, restore and
+// options) are in the order of Tab, and those of the others are not. The arrows, Home and End move
+// the focus from card to card, and the card that has the focus is the active one. The box that ticks
+// a card is out of the order, and Space on the main button ticks it.
+const CARD_BUTTONS = '[data-open], [data-restore], [data-favorite], [data-menu]';
+const mainButton = (card: HTMLElement) =>
+  card.querySelector<HTMLElement>('[data-open], [data-restore]');
+let activeBook: string | null = null;
+function activateCard(card: HTMLElement | null) {
+  const previous = activeBook ? cardOf(activeBook) : null;
+  if (previous && previous !== card)
+    previous.querySelectorAll<HTMLElement>(CARD_BUTTONS).forEach((b) => (b.tabIndex = -1));
+  activeBook = card?.dataset.book ?? null;
+  card?.querySelectorAll<HTMLElement>(CARD_BUTTONS).forEach((b) => (b.tabIndex = 0));
+}
+// The main button of the card that is the stop of Tab.
+const activeButton = () => {
+  const card = activeBook ? cardOf(activeBook) : null;
+  return (card && mainButton(card)) ?? mainButton($('#books'));
+};
+let boundGrid: HTMLElement | null = null;
 const relabel = (button: HTMLElement, text: string) => {
   button.setAttribute('aria-label', text);
   button.title = text;
@@ -130,10 +153,7 @@ export function updateSelection(state: Pick<LibraryViewState, 'snapshot' | 'filt
     );
   }
   // A bar that goes away must not take the focus with it.
-  if (leaving)
-    (
-      $('#books').querySelector<HTMLElement>('[data-open], [data-restore]') ?? $('#library-search')
-    ).focus({ preventScroll: true });
+  if (leaving) (activeButton() ?? $('#library-search')).focus({ preventScroll: true });
 }
 // Draws the library: the side bar's tags and counts, the title of the filter and the cards. Says
 // which cards are on screen, in order.
@@ -248,7 +268,7 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
   grid.innerHTML = books
     .map(
       (b) =>
-        `<article class="book-card" data-book="${b.id}"><input type="checkbox" class="select-check" data-select="${b.id}" aria-label="Selecionar ${esc(b.title)}">${cardCover(b, filter === 'trash', `${cover(b, snapshot.folder)}${bookInfo(b, hits.get(b.id))}`)}<div class="card-actions">${filter === 'trash' ? `<button class="text-button" data-restore="${b.id}">${icon('undo')} Restaurar</button><button class="icon-button" data-menu="${b.id}" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>` : `<button class="icon-button ${b.favorite ? 'selected' : ''}" data-favorite="${b.id}" title="${b.favorite ? 'Remover dos favoritos' : 'Favoritar'}" aria-label="${esc(favoriteLabel(b))}">${icon('star')}</button><button class="icon-button" data-menu="${b.id}" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}</div></article>`,
+        `<article class="book-card" data-book="${b.id}"><input type="checkbox" class="select-check" data-select="${b.id}" tabindex="-1" aria-label="Selecionar ${esc(b.title)}">${cardCover(b, filter === 'trash', `${cover(b, snapshot.folder)}${bookInfo(b, hits.get(b.id))}`)}<div class="card-actions">${filter === 'trash' ? `<button class="text-button" data-restore="${b.id}" tabindex="-1">${icon('undo')} Restaurar</button><button class="icon-button" data-menu="${b.id}" tabindex="-1" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>` : `<button class="icon-button ${b.favorite ? 'selected' : ''}" data-favorite="${b.id}" tabindex="-1" title="${b.favorite ? 'Remover dos favoritos' : 'Favoritar'}" aria-label="${esc(favoriteLabel(b))}">${icon('star')}</button><button class="icon-button" data-menu="${b.id}" tabindex="-1" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}</div></article>`,
     )
     .join('');
   $('#empty').innerHTML = books.length
@@ -310,15 +330,60 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
     else if ($('#popover').hidden) bookMenu(anchorOf(card), bookOf(card), { owner: control(card) });
   };
   grid.onkeydown = (e) => {
-    if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return;
     const card = cardAt(e.target);
     if (!card) return;
+    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
+      e.preventDefault();
+      bookMenu(anchorOf(card), bookOf(card), { owner: e.target as HTMLElement });
+      return;
+    }
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    // Space on the main button ticks the card, as its box does (Shift + Space ticks the range);
+    // Enter, which opens, is the button's own. The star and the options keep Space for themselves.
+    if (e.key === ' ') {
+      if (!(e.target as HTMLElement).matches('[data-open], [data-restore]')) return;
+      e.preventDefault();
+      if (!e.repeat) actions.select(card.dataset.book!, e.shiftKey ? 'range' : 'toggle');
+      return;
+    }
+    if (
+      e.shiftKey ||
+      !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)
+    )
+      return;
+    // The arrows, Home and End, from any button of the card, to the main button of another.
+    const cards = [...grid.querySelectorAll<HTMLElement>('.book-card')];
+    const boxes = cards.map((c) => c.getBoundingClientRect());
+    const at = cardAfterKey(
+      boxes,
+      cards.indexOf(card),
+      e.key,
+      grid.classList.contains('book-list'),
+    );
+    if (at === undefined) return;
     e.preventDefault();
-    bookMenu(anchorOf(card), bookOf(card), { owner: e.target as HTMLElement });
+    // The card is brought into view first: a card far from the screen is drawn only when it gets
+    // near it, and the focus can then go to it. The first row also shows what is above it.
+    cards[at].scrollIntoView({ block: 'nearest' });
+    if (boxes[at].top - boxes[0].top < 4) grid.closest('.library-main')?.scrollTo({ top: 0 });
+    mainButton(cards[at])?.focus({ preventScroll: true });
   };
+  // Whatever gives focus to a button of a card (a key, a click, the drawing that puts it back) makes
+  // that card the one of Tab.
+  if (boundGrid !== grid) {
+    boundGrid = grid;
+    grid.addEventListener('focusin', (e) => {
+      const card = cardAt(e.target);
+      if (card) activateCard(card);
+    });
+  }
   grid
     .querySelectorAll<HTMLElement>('[data-restore]')
     .forEach((b) => (b.onclick = () => restoreBook(b.dataset.restore!)));
+  // The card that was the stop of Tab stays it, if it is still on screen; else the first.
+  activateCard(
+    (activeBook ? cardOf(activeBook) : null) ?? grid.querySelector<HTMLElement>('.book-card'),
+  );
   updateSelection(state);
   applyPrefs();
   return books.map((b) => b.id);

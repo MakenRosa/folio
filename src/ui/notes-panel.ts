@@ -56,7 +56,14 @@ function card(note: Note) {
   const highlight = isHighlight(note),
     color = colorOf(note),
     text = (note.text ?? '').trim();
-  return `<article class="note-card" data-note-id="${esc(note.id)}"${highlight ? ` data-color="${color}"` : ''}><div class="note-head"><button class="note-page" data-go="${esc(note.id)}" data-page="${note.page}" title="${highlight ? 'Ir ao trecho realçado' : 'Ir à página'}">${highlight ? `<span class="note-swatch" data-color="${color}" role="img" aria-label="Realce ${COLOR_LABELS[color].toLowerCase()}"></span>` : ''}Página ${note.page} ${icon('arrow')}</button><button class="icon-button note-more" data-menu data-more="${esc(note.id)}" type="button" aria-label="Opções da nota" title="Opções" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div>${note.quote ? `<blockquote>${esc(note.quote)}</blockquote>` : ''}${text ? `<p>${esc(text)}</p>` : highlight ? '<p class="note-kind">Realce</p>' : ''}<button class="text-button" data-edit-note="${esc(note.id)}" type="button">${highlight && !text ? 'Adicionar nota' : 'Editar nota'}</button></article>`;
+  const goTitle = highlight ? 'Ir ao trecho realçado' : 'Ir à página';
+  // The quote is the part of the card that the reader looks for, so it takes to the passage as the
+  // "Página N" link does. It is a button of its own beside that link, not inside it, and a button
+  // does not hold another: "Editar nota" and the options stay apart, each with its own focus.
+  const quote = note.quote
+    ? `<blockquote><button class="note-quote" data-go-quote="${esc(note.id)}" type="button" title="${goTitle}"><span>${esc(note.quote)}</span></button></blockquote>`
+    : '';
+  return `<article class="note-card" data-note-id="${esc(note.id)}"${highlight ? ` data-color="${color}"` : ''}><div class="note-head"><button class="note-page" data-go="${esc(note.id)}" data-page="${note.page}" title="${goTitle}">${highlight ? `<span class="note-swatch" data-color="${color}" role="img" aria-label="Realce ${COLOR_LABELS[color].toLowerCase()}"></span>` : ''}Página ${note.page} ${icon('arrow')}</button><button class="icon-button note-more" data-menu data-more="${esc(note.id)}" type="button" aria-label="Opções da nota" title="Opções" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div>${quote}${text ? `<p>${esc(text)}</p>` : highlight ? '<p class="note-kind">Realce</p>' : ''}<button class="text-button" data-edit-note="${esc(note.id)}" type="button">${highlight && !text ? 'Adicionar nota' : 'Editar nota'}</button></article>`;
 }
 
 // Where the focus was in the tab. Every change of a note draws the tab again, and the button that had
@@ -76,7 +83,9 @@ export function notesFocusOf(root: HTMLElement, el: Element | null): NotesFocus 
   if (!card) return el.id ? { control: `#${CSS.escape(el.id)}`, note: null, near: [] } : null;
   const cards = [...root.querySelectorAll<HTMLElement>('.note-card')],
     at = cards.indexOf(card);
-  const attribute = ['data-go', 'data-more', 'data-edit-note'].find((a) => el.hasAttribute(a));
+  const attribute = ['data-go', 'data-go-quote', 'data-more', 'data-edit-note'].find((a) =>
+    el.hasAttribute(a),
+  );
   return {
     control: attribute ? `[${attribute}]` : 'button',
     note: card.dataset.noteId ?? null,
@@ -149,11 +158,11 @@ export function renderNotes(
   root.querySelector<HTMLElement>('#side-export-notes')!.onclick = actions.exportNotes;
   list.onclick = (e) => {
     const target = e.target as Element;
-    const go = target.closest<HTMLElement>('[data-go]'),
+    const go = target.closest<HTMLElement>('[data-go], [data-go-quote]'),
       edit = target.closest<HTMLElement>('[data-edit-note]'),
       more = target.closest<HTMLElement>('[data-more]');
     if (go) {
-      const note = byId(go.dataset.go);
+      const note = byId(go.dataset.go ?? go.dataset.goQuote);
       if (note) actions.go(note);
     } else if (edit) {
       const note = byId(edit.dataset.editNote);

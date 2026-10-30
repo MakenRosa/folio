@@ -1,6 +1,12 @@
 import type { Book, Preferences } from '../types';
 import { dayCount, localDay } from '../reading/goals';
-import { firstHistoryDay, historyDay, monthDays, statusLabels } from '../reading/history';
+import {
+  calendarStep,
+  firstHistoryDay,
+  historyDay,
+  monthDays,
+  statusLabels,
+} from '../reading/history';
 import { icon } from '../icons';
 import { $, esc, ib } from './dom';
 import { modal } from './overlays';
@@ -67,12 +73,13 @@ export function showHistory(
       <p class="mode-description">${scope === 'global' ? 'Os totais incluem todos os documentos. A meta geral soma apenas os que usavam essa configuração no dia.' : 'Os totais são deste documento. Quando ele usa a meta geral, o resultado considera todos os documentos que compartilham essa meta.'}</p>
       <div class="history-stats"><div><strong>${summary.pages}</strong><span>páginas no mês</span></div><div><strong>${summary.chapters}</strong><span>capítulos no mês</span></div><div><strong>${summary.met}</strong><span>dias com meta atingida</span></div></div>
       <div class="history-week" aria-hidden="true">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => `<span>${d}</span>`).join('')}</div>
-      <div class="history-calendar" role="group" aria-label="Dias do mês">${'<span aria-hidden="true"></span>'.repeat((date(days[0]).getDay() + 6) % 7)}${days
+      <p id="history-keys" class="sr-only">Use as setas para andar pelos dias, Home e End para ir ao começo e ao fim da semana, Page Up e Page Down para trocar de mês, e Enter ou Espaço para escolher o dia.</p>
+      <div class="history-calendar" role="group" aria-label="Dias do mês" aria-describedby="history-keys">${'<span aria-hidden="true"></span>'.repeat((date(days[0]).getDay() + 6) % 7)}${days
         .map((day) => {
           const d = historyDay(books, prefs, day, scope, today),
             future = day > today;
           const state = !d.recorded ? 'Sem registro' : statusLabels[d.status];
-          return `<button class="history-day ${future ? 'future' : d.status}" data-history-day="${day}" ${future ? 'disabled' : ''} aria-pressed="${day === selected}" aria-label="${esc(`${label(day)}: ${future ? 'dia futuro' : `${d.pages} páginas, ${d.chapters} capítulos. ${state}`}`)}"><strong>${Number(day.slice(-2))}${day === today ? '<span class="history-today">hoje</span>' : ''}</strong><span>${future ? '' : d.recorded ? `${d.pages} pág. · ${d.chapters} cap.` : 'Sem registro'}</span><small>${future || !d.recorded ? '' : d.status === 'met' ? '✓ Atingida' : d.status === 'missed' ? 'Abaixo' : d.status === 'ongoing' ? 'Em andamento' : d.status === 'none' ? 'Sem meta' : 'Não registrada'}</small></button>`;
+          return `<button class="history-day ${future ? 'future' : d.status}" data-history-day="${day}" tabindex="${day === selected ? 0 : -1}" ${future ? 'disabled' : ''} aria-pressed="${day === selected}" aria-label="${esc(`${label(day)}: ${future ? 'dia futuro' : `${d.pages} páginas, ${d.chapters} capítulos. ${state}`}`)}"><strong>${Number(day.slice(-2))}${day === today ? '<span class="history-today">hoje</span>' : ''}</strong><span>${future ? '' : d.recorded ? `${d.pages} pág. · ${d.chapters} cap.` : 'Sem registro'}</span><small>${future || !d.recorded ? '' : d.status === 'met' ? '✓ Atingida' : d.status === 'missed' ? 'Abaixo' : d.status === 'ongoing' ? 'Em andamento' : d.status === 'none' ? 'Sem meta' : 'Não registrada'}</small></button>`;
         })
         .join('')}</div>
       <section class="history-detail" aria-live="polite"><div class="history-detail-title"><h3>${esc(label(selected))}</h3><span class="history-status ${detail.status}">${detail.recorded ? statusLabels[detail.status] : 'Sem registro'}</span></div><p>${esc(target)}</p><div class="history-day-totals"><strong>${quantity(detail.pages, 'página')}</strong><strong>${quantity(detail.chapters, 'capítulo')}</strong></div>
@@ -87,20 +94,21 @@ export function showHistory(
       scope = $<HTMLSelectElement>('#history-scope').value;
       render();
     };
+    // Not back to the old month in silence: the field says which months there are.
+    const refuseMonth = () => {
+      $<HTMLInputElement>('#history-month').value = month;
+      $('#history-hint').textContent =
+        first.slice(0, 7) === today.slice(0, 7)
+          ? `Só há registro de ${monthName(today.slice(0, 7))}.`
+          : `Escolha um mês entre ${monthName(first.slice(0, 7))} e ${monthName(today.slice(0, 7))}.`;
+    };
     const changeMonth = (value: string) => {
       if (
         !/^\d{4}-(0[1-9]|1[0-2])$/.test(value) ||
         value < first.slice(0, 7) ||
         value > today.slice(0, 7)
-      ) {
-        // Not back to the old month in silence: the field says which months there are.
-        $<HTMLInputElement>('#history-month').value = month;
-        $('#history-hint').textContent =
-          first.slice(0, 7) === today.slice(0, 7)
-            ? `Só há registro de ${monthName(today.slice(0, 7))}.`
-            : `Escolha um mês entre ${monthName(first.slice(0, 7))} e ${monthName(today.slice(0, 7))}.`;
-        return;
-      }
+      )
+        return refuseMonth();
       month = value;
       selected = month === today.slice(0, 7) ? today : monthDays(month).at(-1)!;
       render();
@@ -118,6 +126,39 @@ export function showHistory(
         $('.history-detail').scrollIntoView({ block: 'nearest' });
       };
     });
+    // The days are one stop of Tab (the selected one, or the last that the arrows reached) and the
+    // keys move the focus among them. Enter and Space are the buttons' own: they select the day.
+    // A key that leaves the month brings the new one, with the day chosen in it; one that would
+    // go to a day that cannot be shown says why, in the hint, and stays.
+    const calendar = $('.history-calendar');
+    calendar.onkeydown = (e) => {
+      const from = (e.target as HTMLElement).closest<HTMLElement>('[data-history-day]');
+      if (!from || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      const step = calendarStep(from.dataset.historyDay!, e.key, today, first);
+      if (!step) return;
+      e.preventDefault();
+      if ('refused' in step) {
+        if (step.refused === 'future' && !e.key.startsWith('Page'))
+          $('#history-hint').textContent = 'Esse dia ainda não chegou.';
+        else refuseMonth();
+        return;
+      }
+      if (step.day.slice(0, 7) !== month) {
+        month = step.day.slice(0, 7);
+        selected = step.day;
+        render();
+        document
+          .querySelector<HTMLElement>(`[data-history-day="${step.day}"]`)
+          ?.focus({ preventScroll: true });
+        return;
+      }
+      $('#history-hint').textContent = '';
+      calendar.querySelector('[data-history-day][tabindex="0"]')?.setAttribute('tabindex', '-1');
+      const next = calendar.querySelector<HTMLElement>(`[data-history-day="${step.day}"]`);
+      if (!next) return;
+      next.tabIndex = 0;
+      next.focus();
+    };
   };
   render();
 }

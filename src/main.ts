@@ -180,6 +180,11 @@ const selectionBar = new SelectionBar({
   highlight: (color) => void highlightSelection(color),
   annotate: () => void annotateSelection(),
   copy: () => void copySelection(),
+  status: $('#selection-status'),
+  hint: () =>
+    prefs.singleKeys
+      ? 'Trecho selecionado. H realça, N adiciona nota e Esc cancela.'
+      : 'Trecho selecionado. Esc cancela.',
 });
 bindReadingComfort(prefs, applyPrefs);
 function renderLibrary() {
@@ -401,7 +406,7 @@ function bookMenu(
     anchor,
     removed
       ? `<button data-action="restore">${icon('undo')} Restaurar</button><hr><button data-action="purge" class="danger">${icon('trash')} Excluir definitivamente</button>`
-      : `${reading ? '' : `<button data-action="open">${icon('book')} Abrir documento</button>`}<button data-action="goal">${icon('target')} Meta de leitura…</button><button data-action="restart">${icon('restart')} Ler do início</button><button data-action="rename">${icon('edit')} Renomear na biblioteca…</button><button data-action="tags">${icon('tag')} Etiquetas…</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia…</button><button data-action="export-notes">${icon('note')} Exportar notas…</button><hr><button data-action="remove" class="danger">${icon('archive')} Remover da biblioteca</button>`,
+      : `${reading ? '' : `<button data-action="open">${icon('book')} Abrir documento</button>`}<button data-action="goal">${icon('target')} Meta de leitura…</button><button data-action="restart">${icon('restart')} Ler do início</button><button data-action="rename">${icon('edit')} Renomear na biblioteca…</button><button data-action="tags">${icon('tag')} Etiquetas…</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia…</button><button data-action="export-notes">${icon('note')} Exportar notas…</button>${reading ? `<hr><button data-action="help">${icon('help')} Guia e atalhos…</button>` : ''}<hr><button data-action="remove" class="danger">${icon('archive')} Remover da biblioteca</button>`,
     { ...options, menu: true, label: `Opções de ${b.title}` },
   );
   $('#popover')
@@ -443,6 +448,9 @@ function bookMenu(
                 break;
               case 'export-notes':
                 await exportNotes(b);
+                break;
+              case 'help':
+                showHelp();
                 break;
               case 'remove':
                 if (current?.id === b.id) await closeReader();
@@ -1001,6 +1009,7 @@ async function openBook(book: Book, keepNotices = false) {
         selectionBar.hide();
         openNoteMenu(anchor, note, at ? { at } : {});
       },
+      onSelect: () => selectionBar.follow(),
       container: $('#viewer-container'),
       viewer: $('#pdf-viewer'),
       onPage: (page) => {
@@ -1412,6 +1421,43 @@ async function toggleBookmark() {
   updateReaderMeta();
   renderSidebar('bookmarks');
 }
+// Takes one mark off the list of the Marcas tab, with a way back that puts it where it was. The
+// button that was pressed goes away with the old drawing, so the focus goes to the same place of the
+// list (the next mark; the one before, if it was the last) and to the tab when no mark is left.
+async function removeBookmark(page: number) {
+  const open = current;
+  if (!open) return;
+  const id = open.id,
+    fromList = $('#sidebar-content').contains(document.activeElement),
+    at = open.bookmarks.indexOf(page);
+  await flushReading();
+  if (current?.id !== id) return;
+  await patchBook(id, { bookmarks: current.bookmarks.filter((n) => n !== page) });
+  updateReaderMeta();
+  renderSidebar('bookmarks');
+  if (fromList) {
+    const buttons = [...$('#sidebar-content').querySelectorAll<HTMLElement>('.bookmark-remove')];
+    (buttons[Math.min(at, buttons.length - 1)] ?? $('#tab-bookmarks')).focus();
+  }
+  toast(`Marca da página ${page} removida.`, {
+    label: 'Desfazer',
+    run: () => void restoreBookmark(id, page).catch(failing(FAILED.undo)),
+  });
+}
+// Puts a mark back, in its place in the order of the pages. The document may have been closed since.
+async function restoreBookmark(id: string, page: number) {
+  if (current?.id === id) await flushReading();
+  const book = current?.id === id ? current : snapshot.books.find((b) => b.id === id);
+  if (!book || book.bookmarks.includes(page)) return;
+  await patchBook(id, { bookmarks: [...book.bookmarks, page].sort((a, b) => a - b) });
+  if (current?.id !== id) return;
+  updateReaderMeta();
+  renderSidebar('bookmarks');
+  // The message gave the focus back to a button that the drawing replaced: it goes to the mark.
+  const lost = !document.activeElement || document.activeElement === document.body;
+  if (lost && !$('#reader-sidebar').hidden && prefs.sidebarTab === 'bookmarks')
+    $('#sidebar-content').querySelector<HTMLElement>(`.bookmark-row[data-page="${page}"]`)?.focus();
+}
 function disposeSidebar() {
   outlineView?.dispose();
   outlineView = null;
@@ -1449,7 +1495,7 @@ function renderSidebar(only?: SidebarTab) {
       ? current.bookmarks
           .map(
             (p) =>
-              `<button class="bookmark-row ${current?.page === p ? 'active' : ''}" data-page="${p}">${icon('bookmark')} Página ${p}${icon('arrow')}</button>`,
+              `<div class="bookmark-item"><button class="bookmark-row ${current?.page === p ? 'active' : ''}" data-page="${p}">${icon('bookmark')} Página ${p}${icon('arrow')}</button><button class="icon-button bookmark-remove" data-remove-page="${p}" type="button" aria-label="Remover marca da página ${p}" title="Remover marca">${icon('trash')}</button></div>`,
           )
           .join('')
       : `<div class="side-empty">${icon('bookmark')}<h3>Guarde uma página</h3><p>Clique em “Marcar esta página” na barra de ferramentas ou use Ctrl + B.</p></div>`;
@@ -1462,10 +1508,18 @@ function renderSidebar(only?: SidebarTab) {
       exportNotes: () => current && void exportNotes(current).catch(failing(FAILED.exportNotes)),
     });
   }
-  if (tab === 'bookmarks')
+  if (tab === 'bookmarks') {
     content
-      .querySelectorAll<HTMLElement>('[data-page]')
+      .querySelectorAll<HTMLElement>('.bookmark-row')
       .forEach((b) => (b.onclick = () => reader?.jumpTo(Number(b.dataset.page))));
+    content
+      .querySelectorAll<HTMLElement>('[data-remove-page]')
+      .forEach(
+        (b) =>
+          (b.onclick = () =>
+            void removeBookmark(Number(b.dataset.removePage)).catch(failing(FAILED.bookmark))),
+      );
+  }
   content.scrollTop = scrolled;
   syncSidebar();
 }
@@ -1806,10 +1860,26 @@ $('#page-number').onblur = updateReaderMeta;
 $('#zoom').onchange = () => reader?.zoom($<HTMLSelectElement>('#zoom').value);
 $('#zoom-in').onclick = () => reader?.stepZoom(1);
 $('#zoom-out').onclick = () => reader?.stepZoom(-1);
-$('#rotate').onclick = () => {
-  reader?.rotate();
+// The rotation is saved with the book, so a turn that was not meant has a way back: the message
+// says it, and "Desfazer" turns the pages back by the same quarter. One message at a time, for the
+// last turn, so that a few presses in a row do not pile them up.
+let closeRotationNotice: (() => void) | null = null;
+function rotatePages(degrees = 90) {
+  if (!reader) return false;
+  const before = reader.rotation;
+  reader.rotate(degrees);
+  if (reader.rotation === before) return false;
   thumbnails?.refresh();
-  if (current && reader) queueReading({ rotation: reader.rotation });
+  if (current) queueReading({ rotation: reader.rotation });
+  return true;
+}
+$('#rotate').onclick = () => {
+  if (!rotatePages()) return;
+  closeRotationNotice?.();
+  closeRotationNotice = toast('Páginas giradas.', {
+    label: 'Desfazer',
+    run: () => void rotatePages(270),
+  });
 };
 $('#bookmark').onclick = () => void toggleBookmark().catch(failing(FAILED.bookmark));
 $('#paper-toggle').onclick = () => {
@@ -1887,6 +1957,12 @@ bindShortcuts({
   annotateSelection,
   dismissSelection: () => selectionBar.dismiss(),
   singleKeys: () => prefs.singleKeys,
+  showHelp,
+  clearSearch: () => {
+    if (!$<HTMLInputElement>('#library-search').value) return false;
+    clearSearch();
+    return true;
+  },
 });
 async function init() {
   await getCurrentWindow().onResized(
@@ -1930,9 +2006,23 @@ async function init() {
   await listen('open-files', () => void takeLaunched().catch(failing(FAILED.openFiles)));
   void takeLaunched().catch(failing(FAILED.openFiles));
 }
-void init().catch((e) => {
-  const { message, detail } = describeError(e);
-  modal(
-    `<h2>Não foi possível abrir a biblioteca</h2><p>${esc(message)}</p>${detail ? `<details class="error-detail"><summary>Detalhes</summary><p>${esc(detail)}</p></details>` : ''}<p>Seus PDFs não foram alterados.</p><button class="primary" onclick="location.reload()">Tentar novamente</button>`,
+// The way out of a library that did not open: the page loads again. It is a listener, because the
+// policy of the page (CSP) does not run a handler written in the HTML. Esc, or any other way of
+// closing the dialog, tries again as well, so that the window is never left empty with no way out.
+function showStartError(error: unknown) {
+  const { message, detail } = describeError(error);
+  const d = modal(
+    `<h2>Não foi possível abrir a biblioteca</h2><p>${esc(message)}</p>${detail ? `<details class="error-detail"><summary>Detalhes</summary><p>${esc(detail)}</p></details>` : ''}<p>Seus PDFs não foram alterados.</p><button id="retry-start" class="primary" type="button">Tentar novamente</button>`,
   );
-});
+  const retry = () => location.reload();
+  $('#retry-start').addEventListener('click', retry);
+  d.addEventListener(
+    'close',
+    () => {
+      // Another dialog may have taken its place by now: that one is not this one's to close.
+      if (document.getElementById('retry-start')) retry();
+    },
+    { once: true },
+  );
+}
+void init().catch(showStartError);

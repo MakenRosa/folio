@@ -2,7 +2,11 @@ import type { Reader } from '../reader';
 import { $ } from './dom';
 import { closePopover, failing, toast } from './overlays';
 import { FAILED } from './failures';
+import { isSelectionKey } from '../reading/selection-keys';
 export const SPREAD_KINDLE_NOTE = 'Duas páginas só na rolagem. Saia do modo Kindle para usar.';
+// H or N with nothing selected, and Shift + an arrow where there is no text in view.
+export const SELECT_PASSAGE_NOTE = 'Selecione um trecho: Shift + setas ou o mouse.';
+export const NO_TEXT_NOTE = 'Não há texto para selecionar nesta tela.';
 type ShortcutActions = {
   isReading: () => boolean;
   getReader: () => Reader | null;
@@ -23,9 +27,15 @@ type ShortcutActions = {
   annotateSelection: () => boolean;
   // Esc: puts away the bar of the selection and the selection itself. Says whether there was any.
   dismissSelection: () => boolean;
-  // Whether the keys of one letter (K, L, S, D, R, H, N) act. The reader can turn them off in the
-  // preferences (WCAG 2.1.4); the ones with Ctrl or Alt, the arrows and the like do not depend on it.
+  // Whether the keys of one letter (K, L, S, D, R, H, N, and "?" for the guide) act. The reader can
+  // turn them off in the preferences (WCAG 2.1.4); the ones with Ctrl or Alt, the arrows, F1 and the
+  // like do not depend on it.
   singleKeys: () => boolean;
+  // F1, or "?": the guide, from the library as from the reader.
+  showHelp: () => void;
+  // Esc in the search of the library: clears the field and what it filtered. Says whether there
+  // was any text to clear.
+  clearSearch: () => boolean;
 };
 export function bindShortcuts(actions: ShortcutActions) {
   const { importFiles, closeReader, toggleBookmark, exitFullscreen, showFind } = actions;
@@ -103,11 +113,31 @@ export function bindShortcuts(actions: ShortcutActions) {
       // The whole page is not what Ctrl + A means in the library: it ticks what is on screen.
       e.preventDefault();
       actions.selectAll();
+    } else if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      // The help of Windows. It types nothing, so it works in a field too.
+      e.preventDefault();
+      if (e.repeat) return;
+      if (!$('#popover').hidden) closePopover(true);
+      actions.showHelp();
+    } else if (
+      e.key === '?' &&
+      actions.singleKeys() &&
+      !input &&
+      !inMenu &&
+      !e.metaKey &&
+      // On some keyboards "?" is typed with AltGr, which the page sees as Ctrl and Alt together.
+      (!(e.ctrlKey || e.altKey) || e.getModifierState('AltGraph'))
+    ) {
+      e.preventDefault();
+      if (!e.repeat) actions.showHelp();
     } else if (e.key === 'F11') {
       e.preventDefault();
       $('#fullscreen').click();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      // A search field with text: Esc empties it first, as the search of the notes does, and the
+      // library shows everything again. Only the next Esc goes on to close something else.
+      if (e.target === $('#library-search') && actions.clearSearch()) return;
       // One Escape closes one thing: the menu first, then the bar of the selection (and the
       // selection), then the search, then the ticks of the library, and only then the full screen.
       if (!$('#popover').hidden) closePopover(true);
@@ -118,6 +148,19 @@ export function bindShortcuts(actions: ShortcutActions) {
     } else if (current && !input && !inMenu && !e.ctrlKey && !e.altKey) {
       if (e.metaKey) return;
       const nativeControl = (e.target as HTMLElement).closest('button,a,[role="button"]');
+      // Shift + arrows, with the focus on the pages, select text by the word (← →) or by the line
+      // (↑ ↓), in the scroll and in the Kindle. The turns of the Kindle and the page turns stay with
+      // the arrows alone; with the focus elsewhere (a button, the page itself) nothing changes.
+      if (
+        e.shiftKey &&
+        reader &&
+        isSelectionKey(e.key) &&
+        $('#viewer-container').contains(e.target as Node)
+      ) {
+        e.preventDefault();
+        if (reader.extendSelection(e.key) === 'none') toast(NO_TEXT_NOTE);
+        return;
+      }
       if (
         reader?.kindle &&
         [
@@ -145,17 +188,21 @@ export function bindShortcuts(actions: ShortcutActions) {
       } else {
         // The keys of one letter. With the option off they do nothing, and are not taken from the page.
         if (actions.singleKeys()) {
-          if (e.key.toLowerCase() === 'k') $('#kindle-toggle').click();
-          if (e.key.toLowerCase() === 'l') {
+          // A key held down repeats, and each of these switches or turns something: they act once,
+          // at the press.
+          const key = e.key.toLowerCase();
+          if (key === 'k' && !e.repeat) $('#kindle-toggle').click();
+          if (key === 'l' && !e.repeat) {
             if (reader?.kindle) toast(SPREAD_KINDLE_NOTE);
             else $('#spread-toggle').click();
           }
-          if (e.key.toLowerCase() === 's' && !e.repeat) $('#sidebar-toggle').click();
-          if (e.key.toLowerCase() === 'd') $('#paper-toggle').click();
-          if (e.key.toLowerCase() === 'r') $('#rotate').click();
-          // H and N act on the passage that is selected: highlight it, or write a note on it.
-          if (e.key.toLowerCase() === 'h' && !e.repeat) actions.highlightSelection();
-          if (e.key.toLowerCase() === 'n' && !e.repeat) actions.annotateSelection();
+          if (key === 's' && !e.repeat) $('#sidebar-toggle').click();
+          if (key === 'd' && !e.repeat) $('#paper-toggle').click();
+          if (key === 'r' && !e.repeat) $('#rotate').click();
+          // H and N act on the passage that is selected: highlight it, or write a note on it. With
+          // none selected they say how to select one.
+          if (key === 'h' && !e.repeat && !actions.highlightSelection()) toast(SELECT_PASSAGE_NOTE);
+          if (key === 'n' && !e.repeat && !actions.annotateSelection()) toast(SELECT_PASSAGE_NOTE);
         }
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();

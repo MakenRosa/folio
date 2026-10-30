@@ -132,18 +132,15 @@ try {
     await click('#find-close');
     assert.equal(await opacity(), '0.6');
     assert.equal(await page.locator('#brightness-overlay').isVisible(), true);
+    // The reader marks the body once the window has changed. A predicate that returns a promise
+    // would pass at once, before the window is done, and the next toggle would be ignored.
     await click('#fullscreen');
-    await page.waitForFunction(() =>
-      window.__TAURI_INTERNALS__.invoke('plugin:window|is_fullscreen', { label: 'main' }),
-    );
+    await page.waitForFunction(() => document.body.classList.contains('reader-fullscreen'));
+    assert.equal(await api('plugin:window|is_fullscreen', { label: 'main' }), true);
     assert.equal(await opacity(), '0.6');
     await page.keyboard.press('F11');
-    await page.waitForFunction(
-      async () =>
-        !(await window.__TAURI_INTERNALS__.invoke('plugin:window|is_fullscreen', {
-          label: 'main',
-        })),
-    );
+    await page.waitForFunction(() => !document.body.classList.contains('reader-fullscreen'));
+    assert.equal(await api('plugin:window|is_fullscreen', { label: 'main' }), false);
   });
   await test('Brightness persists after reload and remains confined to reading', async () => {
     await click('#back');
