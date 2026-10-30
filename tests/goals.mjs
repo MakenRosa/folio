@@ -13,6 +13,22 @@ const book = async (id = 'artificial-chapters') =>
     (id) => JSON.parse(localStorage.getItem('folio.test.library')).books.find((b) => b.id === id),
     id,
   );
+// A credit lands after the once-a-second sample and the save that waits for a pause, so a test
+// waits until the stored day has it rather than for a fixed time. The assertion that follows
+// still decides: this only stops waiting early.
+const credited = (kind, value) =>
+  page
+    .waitForFunction(
+      ({ kind, value }) =>
+        Object.values(
+          JSON.parse(localStorage.getItem('folio.test.library')).books.find(
+            (b) => b.id === 'artificial-chapters',
+          ).readingDays ?? {},
+        ).some((d) => d[kind].includes(value)),
+      { kind, value },
+      { timeout: 5000 },
+    )
+    .catch(() => {});
 const openBook = async () => {
   await click('[data-open="artificial-chapters"]');
   await page.waitForFunction(
@@ -143,13 +159,14 @@ try {
   await test('Active reading credits unique PDF pages and a recognized chapter; an open dialog pauses tracking', async () => {
     await openBook();
     await goTo(3);
-    await page.waitForTimeout(9500);
+    await page.waitForTimeout(8500);
+    await credited('pages', 3);
     let b = await book();
     let day = Object.keys(b.readingDays)[0];
     assert.ok(b.readingDays[day].pages.includes(3));
     const count = b.readingDays[day].pages.length;
     await goTo(4);
-    await settle();
+    await credited('chapters', 2);
     b = await book();
     assert.ok(
       b.readingDays[day].chapters.includes(2),
