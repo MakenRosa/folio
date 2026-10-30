@@ -313,6 +313,8 @@ export class Reader {
     return {
       atStart: c.scrollTop <= 1,
       atEnd: c.scrollTop >= max - 1,
+      // A document that fits in the area has no end to reach: it is all there from the start.
+      scrolls: max > 1,
     };
   }
   setMode(

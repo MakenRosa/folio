@@ -100,7 +100,7 @@ try {
     await day('2026-10-10');
     assert.match(
       await page.locator('.history-detail').textContent(),
-      /Meta do livro.*2 \/ 2 capítulos/,
+      /Meta do documento.*2 \/ 2 capítulos/,
     );
     assert.equal(await page.locator('.history-status').textContent(), 'Meta atingida');
   });

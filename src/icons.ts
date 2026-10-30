@@ -36,8 +36,14 @@ const paths: Record<string, string> = {
   undo: '<path d="M3 10h11a6 6 0 0 1 0 12M3 10l6-6m-6 6 6 6"/>',
   file: '<path d="M14 2H5v20h14V7ZM14 2v6h5M8 13h8M8 17h5"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8Z"/><path d="M7.5 8.5h.01"/>',
+  archive: '<path d="M3 4h18v5H3ZM5 9v11h14V9M10 13h4"/>',
+  target:
+    '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8M3.5 3.5V8H8M12 7.5V12l3.5 2"/>',
+  restart: '<path d="M5 5v14M19 5l-10 7 10 7Z"/>',
   copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
 };
 export function icon(name: string) {
-  return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.file}</svg>`;
+  // The width of the line is in pixels, not in units of the drawing (see `svg.icon` in ui.css).
+  return `<svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.file}</svg>`;
 }

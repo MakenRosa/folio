@@ -72,10 +72,14 @@ const side = () =>
     };
   });
 const pageValue = async () => Number(await page.locator('#page-number').inputValue());
-// The footer says the page that the reader has reached, after PDF.js got there.
+// The footer says the page that the reader has reached, after PDF.js got there; side by side it
+// names the pair ("Páginas 5–6 de 60"), starting with the page PDF.js reports.
 const waitForPage = (n) =>
   page.waitForFunction(
-    (n) => document.querySelector('#reading-progress').textContent.endsWith(`Página ${n} de 60`),
+    (n) =>
+      new RegExp(`(Página ${n}|Páginas ${n}–\\d+) de 60$`).test(
+        document.querySelector('#reading-progress').textContent,
+      ),
     n,
   );
 // `reported` is the page PDF.js calls current, which is the left one of a pair on screen.

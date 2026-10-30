@@ -42,13 +42,22 @@ const configure = async (scope, mode, unit = 'pages', target = 10) => {
   await click('#goal-save');
   await page.waitForFunction(() => !document.querySelector('#dialog').open);
 };
+// Saving a log draws the total of today again, and nothing else of the dialog: the panel stays open
+// and the focus stays on the button. A mark on the old text tells that it was drawn again.
+const markStatus = () =>
+  page.evaluate(() => (document.querySelector('#goal-current').dataset.old = '1'));
+const statusRedrawn = () =>
+  page.waitForFunction(() => !document.querySelector('#goal-current').dataset.old);
 const log = async (id, pages, chapters) => {
   await goals(id);
   await click('.goal-adjust summary');
   await page.locator('#goal-pages').fill(String(pages));
   await page.locator('#goal-chapters').fill(String(chapters));
+  await markStatus();
   await click('#goal-log-save');
-  await page.waitForFunction(() => !document.querySelector('.goal-adjust').open);
+  await statusRedrawn();
+  assert.equal(await page.locator('.goal-adjust').evaluate((el) => el.open), true);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'goal-log-save');
   await click('#goals-close');
 };
 const test = async (name, fn) => {
@@ -78,7 +87,7 @@ try {
     await click('[data-filter="finished"]');
     assert.equal(await page.locator('.finished-badge').count(), 1);
     await openBook();
-    assert.equal(await page.locator('#finish-reading').textContent(), 'Concluído');
+    assert.equal(await page.locator('#finish-reading').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('#page-number').inputValue(), '3');
     await click('#back');
     await click('[data-filter="reading"]');
@@ -205,8 +214,9 @@ try {
     await page.locator('#goal-pages').fill('100');
     const before = (await book()).readingDays;
     await page.clock.setFixedTime(new Date(2030, 0, 2, 0, 0, 30));
+    await markStatus();
     await click('#goal-log-save');
-    await page.waitForFunction(() => !document.querySelector('.goal-adjust').open);
+    await statusRedrawn();
     assert.deepEqual((await book()).readingDays, before);
     assert.match(await page.locator('#goal-current').textContent(), /0 \/ 3 capítulos/);
     await click('#goals-close');

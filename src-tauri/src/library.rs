@@ -638,7 +638,7 @@ impl Library {
                 Ok(()) => result.freed += book.size,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => result.failed.push(format!(
-                    "{}: a cópia do PDF não foi apagada ({e})",
+                    "{}: a cópia do PDF não foi excluída ({e})",
                     book.title
                 )),
             }
@@ -648,7 +648,7 @@ impl Library {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => result
                     .failed
-                    .push(format!("{}: a capa não foi apagada ({e})", book.title)),
+                    .push(format!("{}: a capa não foi excluída ({e})", book.title)),
             }
         }
         Ok(result)

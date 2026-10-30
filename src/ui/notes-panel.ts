@@ -39,11 +39,24 @@ export function matchNotes(notes: readonly Note[], query: string): Note[] {
   );
 }
 
+// What the tab counts is what its cards show: a highlight with no text is a "Realce", anything
+// else is a note.
+function countLabel(notes: readonly Note[]) {
+  const highlights = notes.filter((n) => isHighlight(n) && !(n.text ?? '').trim()).length,
+    texts = notes.length - highlights;
+  return [
+    texts ? `${texts} ${texts === 1 ? 'nota' : 'notas'}` : '',
+    highlights ? `${highlights} ${highlights === 1 ? 'realce' : 'realces'}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 function card(note: Note) {
   const highlight = isHighlight(note),
     color = colorOf(note),
     text = (note.text ?? '').trim();
-  return `<article class="note-card" data-note-id="${esc(note.id)}"${highlight ? ` data-color="${color}"` : ''}><div class="note-head"><button class="note-page" data-go="${esc(note.id)}" data-page="${note.page}" title="${highlight ? 'Ir ao trecho realçado' : 'Ir à página'}">${highlight ? `<span class="note-swatch" data-color="${color}" role="img" aria-label="Realce ${COLOR_LABELS[color].toLowerCase()}"></span>` : ''}Página ${note.page} ${icon('arrow')}</button><button class="icon-button note-more" data-menu data-more="${esc(note.id)}" type="button" aria-label="Opções da nota" title="Opções" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div>${note.quote ? `<blockquote>${esc(note.quote)}</blockquote>` : ''}${text ? `<p>${esc(text)}</p>` : highlight ? '<p class="note-kind">Realce</p>' : ''}<button class="text-button" data-edit-note="${esc(note.id)}" type="button">${highlight && !text ? 'Adicionar nota' : 'Editar'}</button></article>`;
+  return `<article class="note-card" data-note-id="${esc(note.id)}"${highlight ? ` data-color="${color}"` : ''}><div class="note-head"><button class="note-page" data-go="${esc(note.id)}" data-page="${note.page}" title="${highlight ? 'Ir ao trecho realçado' : 'Ir à página'}">${highlight ? `<span class="note-swatch" data-color="${color}" role="img" aria-label="Realce ${COLOR_LABELS[color].toLowerCase()}"></span>` : ''}Página ${note.page} ${icon('arrow')}</button><button class="icon-button note-more" data-menu data-more="${esc(note.id)}" type="button" aria-label="Opções da nota" title="Opções" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div>${note.quote ? `<blockquote>${esc(note.quote)}</blockquote>` : ''}${text ? `<p>${esc(text)}</p>` : highlight ? '<p class="note-kind">Realce</p>' : ''}<button class="text-button" data-edit-note="${esc(note.id)}" type="button">${highlight && !text ? 'Adicionar nota' : 'Editar nota'}</button></article>`;
 }
 
 // The Notas tab: a button for a new note, a search over the text and the quote (which only
@@ -56,9 +69,9 @@ export function renderNotes(
   actions: NotesActions,
 ) {
   const any = notes.length > 0;
-  root.innerHTML = `<button id="side-add-note" class="secondary" type="button">${icon('plus')} Nova nota</button>${
+  root.innerHTML = `<button id="side-add-note" class="secondary" type="button">${icon('plus')} Adicionar nota</button>${
     any
-      ? `<div class="search-input notes-search">${icon('search')}<input id="notes-search" type="search" placeholder="Buscar nas notas" aria-label="Buscar nas notas" autocomplete="off" value="${esc(state.query)}"></div><div class="notes-summary"><span id="notes-count" role="status" aria-live="polite"></span><button id="side-export-notes" class="text-button" type="button">${icon('download')} Exportar notas</button></div><div id="notes-list"></div>`
+      ? `<div class="search-input notes-search">${icon('search')}<input id="notes-search" type="search" placeholder="Buscar nas notas" aria-label="Buscar nas notas" autocomplete="off" value="${esc(state.query)}"></div><div class="notes-summary"><span id="notes-count" role="status" aria-live="polite"></span><button id="side-export-notes" class="text-button" type="button">${icon('download')} Exportar notas…</button></div><div id="notes-list"></div>`
       : `<div class="side-empty">${icon('note')}<h3>Suas ideias, por perto</h3><p>Selecione um trecho para realçar ou anotar. Tudo fica salvo neste computador.</p></div>`
   }`;
   root.querySelector<HTMLElement>('#side-add-note')!.onclick = actions.add;
@@ -71,7 +84,7 @@ export function renderNotes(
     const shown = matchNotes(notes, state.query);
     count.textContent = state.query.trim()
       ? `${shown.length} de ${notes.length}`
-      : `${notes.length} ${notes.length === 1 ? 'nota' : 'notas'}`;
+      : countLabel(notes);
     list.innerHTML = shown.length
       ? shown.map(card).join('')
       : `<div class="side-empty">${icon('search')}<h3>Nenhuma nota encontrada</h3><p>Tente outras palavras do texto ou da citação.</p></div>`;

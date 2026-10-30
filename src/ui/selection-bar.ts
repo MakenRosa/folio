@@ -34,7 +34,7 @@ export class SelectionBar {
     const { bar, container } = options;
     const swatch = (color: NoteColor) =>
       `<button type="button" class="hl-swatch" data-color="${color}" aria-label="Realçar em ${COLOR_LABELS[color].toLowerCase()}" title="Realçar em ${COLOR_LABELS[color].toLowerCase()}"><span aria-hidden="true"></span></button>`;
-    bar.innerHTML = `<span class="hl-group" role="group" aria-label="Realçar">${NOTE_COLORS.map(swatch).join('')}</span><span class="hl-divider" aria-hidden="true"></span><button type="button" class="hl-action" data-action="note" title="Anotar o trecho (N)">${icon('note')}<span>Anotar</span></button><button type="button" class="hl-action" data-action="copy" title="Copiar o texto selecionado">${icon('copy')}<span>Copiar</span></button>`;
+    bar.innerHTML = `<span class="hl-group" role="group" aria-label="Realçar">${NOTE_COLORS.map(swatch).join('')}</span><span class="hl-divider" aria-hidden="true"></span><button type="button" class="hl-action" data-action="note" title="Adicionar nota ao trecho (N)">${icon('note')}<span>Adicionar nota</span></button><button type="button" class="hl-action" data-action="copy" title="Copiar o texto selecionado">${icon('copy')}<span>Copiar</span></button>`;
     // The mouse button would take the focus, and with it the selection: it does neither.
     bar.addEventListener('mousedown', (e) => e.preventDefault());
     bar.addEventListener('click', (e) => {

@@ -1,10 +1,13 @@
 import './style.css';
 import { icon } from './icons';
 import { $, documents, esc, size, ib } from './ui/dom';
-import { appShell } from './ui/shell';
+import { appShell, SAVE_STATUS } from './ui/shell';
 import {
   toast,
+  dismissNotices,
   fail,
+  failing,
+  ReportedError,
   modal,
   popover,
   closePopover,
@@ -12,6 +15,7 @@ import {
   type ToastAction,
 } from './ui/overlays';
 import { GENERIC_ERROR, describeError } from './ui/error-text';
+import { FAILED } from './ui/failures';
 import { showImportProgress, hideImportProgress } from './ui/import-progress';
 import { hasSeenHint, withHint, type HintId } from './hints';
 import {
@@ -118,6 +122,15 @@ let loading = false,
   warned = '';
 // What the toolbar button and the L key turn on: the two-page layout last chosen.
 let pairLayout: Exclude<Spread, 'none'> = 'odd';
+// The papers, in the order that the button and the D key go through them.
+const PAPERS: Preferences['paper'][] = ['light', 'sepia', 'dark'];
+const PAPER_NAMES: Record<Preferences['paper'], string> = {
+  light: 'claro',
+  sepia: 'sépia',
+  dark: 'escuro',
+};
+const nextPaper = (paper: Preferences['paper']) =>
+  PAPERS[(PAPERS.indexOf(paper) + 1) % PAPERS.length];
 // The side bar: what its current tab shows, and how the outline was folded by hand.
 let outlineView: OutlineView | null = null,
   thumbnails: ThumbnailList | null = null,
@@ -145,7 +158,7 @@ const chrome = new ReaderChrome(
   getCurrentWindow(),
   () => !!current,
   () => reader?.resize(),
-  fail,
+  failing('Não foi possível alterar a tela cheia.'),
 );
 // The way back after a jump, over the reading surface.
 const jumpPill = new JumpPill({
@@ -178,8 +191,17 @@ function renderLibrary() {
       bookMenu,
       restoreBook,
       applyPrefs,
+      clearSearch,
     },
   );
+}
+// The way out of a search that found nothing, from the empty state: the field is cleared and the
+// focus goes back to it, since the button that was pressed goes away with the message.
+function clearSearch() {
+  query = '';
+  $<HTMLInputElement>('#library-search').value = '';
+  renderLibrary();
+  $('#library-search').focus();
 }
 // A book that the queue just completed: its card is drawn again where it is, and the whole list
 // only when the new title or author changes which cards are shown, or their order.
@@ -215,15 +237,29 @@ function applyPrefs() {
         : 'light'
       : prefs.theme;
   document.documentElement.dataset.paper = prefs.paper;
+  // The button shows where it takes you: the sun on the dark theme, the moon on the light one.
+  $('#theme-toggle').innerHTML = icon(
+    document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon',
+  );
   $('#warm-overlay').style.opacity = String(Math.min(70, Math.max(0, prefs.warm)) / 100);
   $('#brightness-overlay').style.opacity = String((100 - prefs.brightness) / 100);
   savePreferences(localStorage, prefs);
   updateGoals();
   syncReadingComfort(prefs);
   updateReaderMeta();
-  $('#paper-toggle').classList.toggle('selected', prefs.paper === 'dark');
-  $('#view-grid').classList.toggle('selected', prefs.view === 'grid');
-  $('#view-list').classList.toggle('selected', prefs.view === 'list');
+  // The button goes round the three papers (and so does the D key): its name says which is on and
+  // which comes next, and the sample on it (ui.css) is the one that is on.
+  const paperLabel = `Papel ${PAPER_NAMES[prefs.paper]}. Mudar para ${PAPER_NAMES[nextPaper(prefs.paper)]} (D)`;
+  $('#paper-toggle').setAttribute('aria-label', paperLabel);
+  $('#paper-toggle').title = paperLabel;
+  // Grid and list are one choice (a radio group): only the chosen one is a tab stop.
+  for (const view of ['grid', 'list']) {
+    const on = prefs.view === view,
+      button = $(`#view-${view}`);
+    button.classList.toggle('selected', on);
+    button.setAttribute('aria-checked', String(on));
+    button.tabIndex = on ? 0 : -1;
+  }
   $('#sort').setAttribute('value', prefs.sort);
 }
 // The Kindle needs one column: the button is off there, and the choice returns after it.
@@ -315,10 +351,12 @@ async function toggleFavorite(id: string) {
   try {
     const b = snapshot.books.find((x) => x.id === id)!;
     await patchBook(id, { favorite: !b.favorite });
-    renderLibrary();
+    keepLibraryView(renderLibrary);
+    // Under "Favoritos" the card goes away with the star: the focus goes on to the next one.
+    settleFocus();
     updateReaderMeta();
   } catch (e) {
-    fail(e);
+    fail(e, 'Não foi possível mudar o favorito.');
   }
 }
 async function restoreBook(id: string) {
@@ -328,7 +366,7 @@ async function restoreBook(id: string) {
     settleFocus();
     toast('Documento restaurado.');
   } catch (e) {
-    fail(e);
+    fail(e, 'Não foi possível restaurar o documento.');
   }
 }
 // After a change that took the control with the focus off the screen, the focus goes to the first
@@ -336,7 +374,7 @@ async function restoreBook(id: string) {
 function settleFocus() {
   const active = document.activeElement;
   if (active && active !== document.body && active.isConnected) return;
-  const first = $('#books').querySelector<HTMLElement>('.book-open:not(:disabled), [data-restore]');
+  const first = $('#books').querySelector<HTMLElement>('[data-open], [data-restore]');
   (first ?? $('#library-search')).focus({ preventScroll: true });
 }
 // The options of a document, from the button of its card, the reader, or a right click.
@@ -351,11 +389,13 @@ function bookMenu(
     return;
   }
   const removed = snapshot.trash.some((x) => x.id === b.id);
+  // In the reader the document is already open: "Abrir documento" would only load it again.
+  const reading = current?.id === b.id;
   popover(
     anchor,
     removed
       ? `<button data-action="restore">${icon('undo')} Restaurar</button><hr><button data-action="purge" class="danger">${icon('trash')} Excluir definitivamente</button>`
-      : `<button data-action="open">${icon('book')} Abrir documento</button><button data-action="goal">${icon('check')} Meta de leitura</button><button data-action="restart">${icon('undo')} Ler do início</button><button data-action="rename">${icon('edit')} Renomear na biblioteca</button><button data-action="tags">${icon('tag')} Etiquetas…</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia</button><button data-action="export-notes">${icon('note')} Exportar notas</button><hr><button data-action="remove">${icon('trash')} Remover da biblioteca</button>`,
+      : `${reading ? '' : `<button data-action="open">${icon('book')} Abrir documento</button>`}<button data-action="goal">${icon('target')} Meta de leitura…</button><button data-action="restart">${icon('restart')} Ler do início</button><button data-action="rename">${icon('edit')} Renomear na biblioteca…</button><button data-action="tags">${icon('tag')} Etiquetas…</button><button data-action="finish">${icon('check')} ${b.finished ? 'Marcar como não concluído' : 'Marcar como concluído'}</button><button data-action="export">${icon('download')} Exportar uma cópia…</button><button data-action="export-notes">${icon('note')} Exportar notas…</button><hr><button data-action="remove" class="danger">${icon('archive')} Remover da biblioteca</button>`,
     { ...options, menu: true, label: `Opções de ${b.title}` },
   );
   $('#popover')
@@ -402,6 +442,7 @@ function bookMenu(
                 if (current?.id === b.id) await closeReader();
                 await invoke('remove_book', { id: b.id });
                 await refresh();
+                settleFocus();
                 // Each removal keeps its own "Desfazer", so the message says which document it is.
                 toast(`${shortTitle(b.title)} movido para Removidos.`, {
                   label: 'Desfazer',
@@ -409,24 +450,56 @@ function bookMenu(
                 });
             }
           } catch (e) {
-            fail(e);
+            fail(e, menuFailures[el.dataset.action ?? '']);
           }
         }),
     );
 }
+// What each action of the menu of a document says when it fails.
+const menuFailures: Record<string, string> = {
+  open: 'Não foi possível abrir o documento.',
+  goal: 'Não foi possível abrir a meta de leitura.',
+  restart: 'Não foi possível ler do início.',
+  finish: FAILED.finish,
+  export: 'Não foi possível exportar a cópia.',
+  'export-notes': FAILED.exportNotes,
+  remove: 'Não foi possível remover o documento.',
+};
 const shortTitle = (title: string) => `“${title.length > 40 ? `${title.slice(0, 39)}…` : title}”`;
 function renameBook(b: Book) {
   const d = modal(
-    `<div class="dialog-heading"><h2>Renomear documento</h2>${ib('close-rename', 'Fechar', 'close', 'data-close')}</div><p>O nome na biblioteca muda. O arquivo original permanece intacto.</p><label class="field-label" for="rename-input">Título</label><input id="rename-input" class="text-field" value="${esc(b.title)}" maxlength="500"><div class="dialog-actions"><button class="secondary" data-close>Cancelar</button><button id="rename-save" class="primary">Salvar título</button></div>`,
+    `<div class="dialog-heading"><h2>Renomear documento</h2>${ib('close-rename', 'Fechar', 'close', 'data-close')}</div><p>O nome na biblioteca muda. O arquivo original permanece intacto.</p><label class="field-label" for="rename-input">Título</label><input id="rename-input" class="text-field" value="${esc(b.title)}" maxlength="500" aria-describedby="rename-hint" autofocus><p id="rename-hint" class="field-hint" role="status"></p><div class="dialog-actions"><button class="secondary" data-close>Cancelar</button><button id="rename-save" class="primary">Salvar título</button></div>`,
   );
-  $('#rename-save').onclick = async () => {
+  const input = $<HTMLInputElement>('#rename-input'),
+    save = $<HTMLButtonElement>('#rename-save');
+  // A title with nothing in it is not sent: the button waits, and the field says why.
+  const filled = () => {
+    const ok = !!input.value.trim();
+    save.disabled = !ok;
+    $('#rename-hint').textContent = ok ? '' : 'Escreva um título.';
+    return ok;
+  };
+  // What is typed first replaces the title, as when a file is renamed in the Explorer.
+  input.select();
+  input.oninput = filled;
+  input.onkeydown = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    save.click();
+  };
+  save.onclick = async () => {
+    if (!filled()) return;
+    save.disabled = true;
     try {
-      await patchBook(b.id, { title: $<HTMLInputElement>('#rename-input').value });
-      renderLibrary();
-      updateReaderMeta();
+      await patchBook(b.id, { title: input.value });
+      // The dialog closes first: it gives the focus back to the button of the card, and the list is
+      // drawn again with the focus there.
       d.close();
+      keepLibraryView(renderLibrary);
+      updateReaderMeta();
     } catch (e) {
-      fail(e);
+      filled();
+      fail(e, 'Não foi possível renomear o documento.');
     }
   };
 }
@@ -464,13 +537,13 @@ function clearSelection() {
 }
 const chosenBooks = () =>
   (filter === 'trash' ? snapshot.trash : snapshot.books).filter((b) => selected.has(b.id));
-async function runBatch(work: () => Promise<void>) {
+async function runBatch(work: () => Promise<void>, context: string) {
   if (batching) return;
   batching = true;
   try {
     await work();
   } catch (e) {
-    fail(e);
+    fail(e, context);
   } finally {
     batching = false;
   }
@@ -491,7 +564,7 @@ async function changeMany(books: Book[], change: (b: Book) => Partial<Book>, mes
       void runBatch(async () => {
         await patchBooks(undo);
         keepLibraryView(renderLibrary);
-      }),
+      }, FAILED.undo),
   });
 }
 function favoriteSelected() {
@@ -507,7 +580,7 @@ function favoriteSelected() {
         ? `${documents(n)} ${n === 1 ? 'favoritado' : 'favoritados'}.`
         : `${documents(n)} ${n === 1 ? 'removido' : 'removidos'} dos favoritos.`,
     );
-  });
+  }, 'Não foi possível atualizar os favoritos.');
 }
 function finishSelected() {
   return runBatch(async () => {
@@ -520,7 +593,7 @@ function finishSelected() {
       () => ({ finished }),
       `${documents(n)} ${n === 1 ? 'marcado' : 'marcados'} como ${finished ? '' : 'não '}concluído${n === 1 ? '' : 's'}.`,
     );
-  });
+  }, 'Não foi possível atualizar a conclusão dos documentos.');
 }
 function removeSelected() {
   return runBatch(async () => {
@@ -535,7 +608,7 @@ function removeSelected() {
       label: 'Desfazer',
       run: () => void restoreBooks(ids),
     });
-  });
+  }, 'Não foi possível remover os documentos.');
 }
 function restoreBooks(ids: string[]) {
   return runBatch(async () => {
@@ -546,7 +619,7 @@ function restoreBooks(ids: string[]) {
     await refresh();
     settleFocus();
     toast(`${documents(ids.length)} ${ids.length === 1 ? 'restaurado' : 'restaurados'}.`);
-  });
+  }, 'Não foi possível restaurar os documentos.');
 }
 // Deletes documents of Removidos for good, after asking. The result says how much room it freed,
 // and tells the files that could not be deleted: those stay in the folder, and the documents are
@@ -569,12 +642,12 @@ async function purgeBooks(ids: string[], emptying = false) {
     if (result.failed.length)
       toast(
         result.failed.length === 1
-          ? 'Um arquivo não pôde ser apagado e continua na pasta da biblioteca.'
-          : `${result.failed.length} arquivos não puderam ser apagados e continuam na pasta da biblioteca.`,
+          ? 'Um arquivo não pôde ser excluído e continua na pasta da biblioteca.'
+          : `${result.failed.length} arquivos não puderam ser excluídos e continuam na pasta da biblioteca.`,
         undefined,
         { kind: 'error', detail: result.failed.join('\n') },
       );
-  });
+  }, 'Não foi possível excluir os documentos.');
 }
 // The tags of one document (the whole list is what is saved), or one or more tags added to several.
 function editTags(books: Book[]) {
@@ -616,7 +689,7 @@ function editTags(books: Book[]) {
             void runBatch(async () => {
               await patchBooks(undo);
               keepLibraryView(renderLibrary);
-            }),
+            }, FAILED.undo),
         },
       );
       return null;
@@ -625,13 +698,21 @@ function editTags(books: Book[]) {
 }
 function chooseFilter(next: string) {
   // What is ticked belongs to what is on screen: another filter starts with nothing ticked.
+  const cleared = next !== filter && selected.size > 0;
   if (next !== filter) {
     selected.clear();
     anchor = null;
   }
   filter = next;
   renderLibrary();
+  // The bar goes away with the ticks: say why, so that the loss is not silent.
+  if (cleared) toast('Seleção limpa ao trocar de filtro.');
 }
+// The way to a file that an export just made: the Explorer opens on its folder, with it chosen.
+const showFile = (path: string): ToastAction => ({
+  label: 'Abrir pasta',
+  run: () => void invoke('reveal_file', { path }).catch(failing('Não foi possível abrir a pasta.')),
+});
 async function exportBook(b: Book) {
   const destination = await save({
     title: 'Exportar cópia do PDF',
@@ -640,7 +721,7 @@ async function exportBook(b: Book) {
   });
   if (destination) {
     await invoke('export_pdf', { id: b.id, destination });
-    toast('Cópia exportada.');
+    toast('Cópia exportada.', showFile(destination));
   }
 }
 // The notes and highlights of a document as a Markdown file, made by the backend from the catalog.
@@ -666,7 +747,7 @@ async function exportNotes(b: Book) {
     destination,
     offsetMinutes: -new Date().getTimezoneOffset(),
   });
-  toast('Notas exportadas.');
+  toast('Notas exportadas.', showFile(destination));
 }
 // Files by the dialog (or the ones dropped on the window), or one folder with `folder`. The
 // backend turns folders, dropped or chosen, into the PDFs inside them. With `launched`, the files
@@ -704,7 +785,7 @@ async function importFiles(paths?: string[], folder = false, launched = false) {
         `<div class="dialog-heading"><h2>Alguns arquivos não foram adicionados</h2>${ib('close-errors', 'Fechar', 'close', 'data-close')}</div><p>Os demais arquivos foram importados normalmente.</p><ul class="error-list">${result.errors.map(importProblem).join('')}</ul><button class="primary" data-close>Entendi</button>`,
       );
   } catch (e) {
-    fail(e);
+    fail(e, 'Não foi possível adicionar os PDFs.');
   } finally {
     busy = false;
     hideImportProgress();
@@ -742,7 +823,7 @@ async function openImported({ added, existing }: ImportResult) {
   while (loading) await new Promise((resolve) => setTimeout(resolve, 100));
   const book = snapshot.books.find((b) => b.id === id);
   if (!book || current?.id === book.id) return;
-  await openBook(book).catch(fail);
+  await openBook(book, true).catch(failing(FAILED.openPdf));
 }
 function importFolder() {
   return importFiles(undefined, true);
@@ -757,18 +838,21 @@ function importSummary({ added, duplicates, existing, errors }: ImportResult) {
   } else if (!added.length) {
     if (existing.length === 1) {
       const id = existing[0].id;
-      toast(`${shortTitle(existing[0].title)} já estava na biblioteca`, {
+      toast(`${shortTitle(existing[0].title)} já estava na biblioteca.`, {
         label: 'Mostrar',
-        run: () => void showBook(id).catch(fail),
+        run: () => void showBook(id).catch(failing(FAILED.back)),
       });
-    } else toast(`${duplicates} PDFs já estavam na biblioteca`);
+    } else toast(`${duplicates} PDFs já estavam na biblioteca.`);
   } else {
-    const text = `${added.length} PDF${added.length === 1 ? ' adicionado' : 's adicionados'}${duplicates ? ` · ${duplicates} já existente${duplicates === 1 ? '' : 's'}` : ''}`;
+    const text = `${added.length} PDF${added.length === 1 ? ' adicionado' : 's adicionados'}${duplicates ? ` · ${duplicates} já existente${duplicates === 1 ? '' : 's'}` : ''}.`;
     if (added.length === 1) {
       const book = added[0];
       toast(text, {
         label: 'Abrir',
-        run: () => void openBook(snapshot.books.find((b) => b.id === book.id) ?? book).catch(fail),
+        run: () =>
+          void openBook(snapshot.books.find((b) => b.id === book.id) ?? book).catch(
+            failing(FAILED.openPdf),
+          ),
       });
     } else toast(text);
   }
@@ -797,10 +881,15 @@ function queueReading(patch: Partial<Book>) {
   readingPatch = { ...readingPatch, ...patch };
   current = { ...current, ...patch };
   clearTimeout(saveTimer);
-  $('#save-status').textContent = 'Salvando posição…';
-  saveTimer = setTimeout(() => void flushReading(), 450);
+  $('#save-status').textContent = SAVE_STATUS.saving;
+  saveTimer = setTimeout(() => void flushReading(true).catch(() => {}), 450);
 }
-async function flushReading() {
+// Saves what the reading changed. A failure is told to the reader once (the reason, and that the
+// position was not saved) and the saving keeps trying, less often each time, until it works. Those
+// tries (`quiet`) say nothing more; whoever asks to save (closing, a dialog) is told again. The
+// error that comes out was already reported: see `ReportedError`.
+let saveFailures = 0;
+async function flushReading(quiet = false) {
   clearTimeout(saveTimer);
   if (!current || !Object.keys(readingPatch).length) return saveChain;
   const id = current.id,
@@ -810,19 +899,30 @@ async function flushReading() {
     .catch(() => {})
     .then(async () => {
       await patchBook(id, patch);
-      $('#save-status').textContent = 'Posição salva automaticamente';
+      saveFailures = 0;
+      $('#save-status').textContent = SAVE_STATUS.saved;
     })
     .catch((e) => {
-      $('#save-status').textContent = 'Não foi possível salvar';
-      if (current?.id === id) readingPatch = { ...patch, ...readingPatch };
-      fail(e);
-      throw e;
+      const first = saveFailures++ === 0;
+      $('#save-status').textContent = SAVE_STATUS.retrying;
+      if (current?.id === id) {
+        readingPatch = { ...patch, ...readingPatch };
+        saveTimer = setTimeout(
+          () => void flushReading(true).catch(() => {}),
+          Math.min(30000, 2000 * 2 ** (saveFailures - 1)),
+        );
+      }
+      if (!quiet || first) fail(e, 'Não foi possível salvar a posição de leitura.');
+      throw new ReportedError();
     });
   return saveChain;
 }
-async function openBook(book: Book) {
+async function openBook(book: Book, keepNotices = false) {
   if (!book || loading) return;
   closePopover();
+  // The messages of the library do not stay over the page. The ones of a book that came from outside
+  // (the summary of an import) are the exception: nobody has seen them yet.
+  if (!keepNotices) dismissNotices();
   clearSelection();
   jumpPill.hide();
   selectionBar.hide();
@@ -839,6 +939,9 @@ async function openBook(book: Book) {
   $('#library').hidden = true;
   $('#reader').hidden = false;
   $('#reader-loading').hidden = false;
+  $('#save-status').textContent = SAVE_STATUS.idle;
+  // The card that had the focus is gone from the screen: the way out of the loading is where it goes.
+  $('#cancel-loading').focus({ preventScroll: true });
   updateReaderMeta();
   applyPrefs();
   outlineState.folds = new Map();
@@ -893,7 +996,7 @@ async function openBook(book: Book) {
       onPassword: async (incorrect) =>
         new Promise<string | null>((resolve) => {
           const d = modal(
-            `<div class="dialog-heading"><h2>PDF protegido por senha</h2>${ib('close-password', 'Cancelar', 'close', 'data-close')}</div><p>${incorrect ? 'Senha incorreta. Tente novamente.' : 'Digite a senha para abrir o documento. Ela não será armazenada.'}</p><input id="password-input" class="text-field" type="password" aria-label="Senha do PDF" autocomplete="off"><div class="dialog-actions"><button class="secondary" data-close>Cancelar</button><button id="password-submit" class="primary">Abrir PDF</button></div>`,
+            `<div class="dialog-heading"><h2>PDF protegido por senha</h2>${ib('close-password', 'Cancelar', 'close', 'data-close')}</div><p id="password-note">${incorrect ? 'Senha incorreta. Tente novamente.' : 'Digite a senha para abrir o documento. Ela não será armazenada.'}</p><input id="password-input" class="text-field" type="password" aria-label="Senha do PDF" aria-describedby="password-note"${incorrect ? ' aria-invalid="true"' : ''} autocomplete="off"><div class="dialog-actions"><button class="secondary" data-close>Cancelar</button><button id="password-submit" class="primary">Abrir PDF</button></div>`,
           );
           let sent = false;
           d.addEventListener(
@@ -957,7 +1060,7 @@ async function openBook(book: Book) {
     if (current) {
       await closeReader();
       // Giving up on the password leaves the PDF closed, and that is all there is to say.
-      if (!passwordDeclined) fail(e, 'Não foi possível abrir este PDF.');
+      if (!passwordDeclined) fail(e, FAILED.openPdf);
     }
   } finally {
     loading = false;
@@ -987,16 +1090,22 @@ function updateReaderMeta() {
     finished: current.finished,
     atEnd,
   };
+  // With two pages side by side, a step moves by a pair: the ends are those of the pair, and the
+  // footer names both of the pages that are on the screen.
+  const shown = spreadPages(current.page, current.pages, kindle ? 'none' : prefs.spread);
+  const percent = readingProgress(position);
   $('#reading-progress').textContent = current.pages
-    ? `${readingProgress(position)}% · Página ${current.page} de ${current.pages}`
+    ? `${percent}% · ${shown.length > 1 ? `Páginas ${shown[0]}–${shown.at(-1)}` : `Página ${current.page}`} de ${current.pages}`
     : '';
+  // The line of the full screen, where the footer is away: the same percentage.
+  $('#reading-line').style.setProperty('--read', `${current.pages ? percent : 0}%`);
   const left = remainingTime({
     ...position,
     chapters: reader?.chapterStarts,
     secondsPerPage: secondsPerPage(prefs.pace, current.id),
   });
   const estimate = left
-    ? `≈ ${left.chapter === null ? '' : `<span class="time-chapter">${formatDuration(left.chapter)} no capítulo · </span>`}${formatDuration(left.book)} no livro`
+    ? `≈ ${left.chapter === null ? '' : `<span class="time-chapter">${formatDuration(left.chapter)} no capítulo · </span>`}${formatDuration(left.book)} no documento`
     : '';
   // Scrolling calls this constantly; touch the DOM only when the text changes.
   if ($('#reading-time').dataset.estimate !== estimate) {
@@ -1009,23 +1118,21 @@ function updateReaderMeta() {
     : kindle
       ? 'Kindle · ← → ou Espaço'
       : `${size(current.size)} · Cópia local`;
+  // The name stays; the state is in `aria-pressed` and in the colour, like the Kindle button.
   const finish = $('#finish-reading');
-  finish.textContent = current.finished ? 'Concluído' : 'Concluir leitura';
   finish.setAttribute('aria-pressed', String(current.finished));
-  finish.title = current.finished ? 'Marcar como não concluído' : 'Marcar livro como concluído';
   finish.classList.toggle('selected', current.finished);
-  if (atEnd && !current.finished && !finishPrompted) {
+  // The tip is for whoever got to the end by reading, not for a document that fits on the screen.
+  if (atEnd && screen?.scrolls && !current.finished && !finishPrompted) {
     finishPrompted = true;
     const id = current.id;
     showHint('finish', 'Chegou ao fim? Você pode concluir a leitura.', {
       label: 'Concluir',
-      run: () => void finishBook(id).catch(fail),
+      run: () => void finishBook(id).catch(failing(FAILED.finish)),
     });
   }
   updateGoals();
-  // With two pages side by side, a step moves by a pair: the ends are those of the pair.
-  const paired = !kindle && prefs.spread !== 'none',
-    shown = spreadPages(current.page, current.pages, kindle ? 'none' : prefs.spread);
+  const paired = !kindle && prefs.spread !== 'none';
   $('#previous').toggleAttribute(
     'disabled',
     kindle ? !screen || screen.atStart : (shown[0] ?? 1) <= 1,
@@ -1058,9 +1165,18 @@ function goalBooks() {
 function updateGoals() {
   const books = goalBooks();
   const global = prefs.dailyGoal;
-  $('#library-goal').textContent = global
-    ? `Hoje · ${goalLabel(global, globalCount(books, global))}`
+  const done = global ? globalCount(books, global) : 0;
+  $('#library-goal-text').textContent = global
+    ? `Hoje · ${goalLabel(global, done)}`
     : 'Definir meta diária';
+  // A thin bar under the text says how far the day is, so that the button reads as a gauge.
+  const track = $('#library-goal').querySelector<HTMLElement>('.goal-track')!;
+  track.hidden = !global;
+  if (global)
+    track.style.setProperty(
+      '--goal',
+      `${Math.min(100, Math.round((done / global.target) * 100))}%`,
+    );
   const goal = current && effectiveGoal(current, global);
   $('#reader-goal').textContent = goal
     ? `Hoje · ${goalLabel(
@@ -1072,7 +1188,8 @@ function updateGoals() {
     : 'Meta diária';
   reader?.setGoalTracking(!!current && !current.finished);
 }
-async function history(id?: string) {
+// `back`, when the history comes from the goals, takes the reader back to them.
+async function history(id?: string, back?: () => void) {
   await flushReading();
   resetTracking();
   // The days of a document deleted for good are still counted: its record has no file, only them.
@@ -1081,6 +1198,7 @@ async function history(id?: string) {
     [...goalBooks(), ...snapshot.trash, ...snapshot.archived.map(archivedAsBook)],
     id,
     new Set(snapshot.archived.map((a) => a.id)),
+    back,
   );
 }
 async function goals(id?: string) {
@@ -1091,7 +1209,10 @@ async function goals(id?: string) {
     {
       books: goalBooks,
       save: patchBook,
-      history: (scope) => void history(scope).catch(fail),
+      history: (scope) =>
+        void history(scope, () => void goals(scope).catch(failing(FAILED.goals))).catch(
+          failing(FAILED.history),
+        ),
       apply: () => {
         applyPrefs();
         renderLibrary();
@@ -1107,19 +1228,22 @@ async function finishBook(id: string) {
   const finished = !book.finished;
   await patchBook(id, { finished });
   resetTracking();
-  renderLibrary();
+  keepLibraryView(renderLibrary);
+  settleFocus();
   updateReaderMeta();
   toast(
-    finished ? 'Leitura concluída. Ela está em Concluídos.' : 'Livro marcado como não concluído.',
+    finished
+      ? 'Leitura concluída. Ela está em Concluídos.'
+      : 'Documento marcado como não concluído.',
     {
       label: 'Desfazer',
       run: () => {
         void patchBook(id, { finished: !finished })
           .then(() => {
-            renderLibrary();
+            keepLibraryView(renderLibrary);
             updateReaderMeta();
           })
-          .catch(fail);
+          .catch(failing(FAILED.undo));
       },
     },
   );
@@ -1297,14 +1421,14 @@ function renderSidebar(only?: SidebarTab) {
               `<button class="bookmark-row ${current?.page === p ? 'active' : ''}" data-page="${p}">${icon('bookmark')} Página ${p}${icon('arrow')}</button>`,
           )
           .join('')
-      : `<div class="side-empty">${icon('bookmark')}<h3>Guarde uma página</h3><p>Clique no marcador da barra ou use Ctrl + B.</p></div>`;
+      : `<div class="side-empty">${icon('bookmark')}<h3>Guarde uma página</h3><p>Clique em “Marcar esta página” na barra de ferramentas ou use Ctrl + B.</p></div>`;
   } else {
     renderNotes(content, current.notes, notesState, {
       add: () => editNote(),
       edit: (note) => editNote(note),
       menu: (anchor, note) => openNoteMenu(anchor, note),
       go: (note) => reader?.jumpToNote(note),
-      exportNotes: () => current && void exportNotes(current).catch(fail),
+      exportNotes: () => current && void exportNotes(current).catch(failing(FAILED.exportNotes)),
     });
   }
   if (tab === 'bookmarks')
@@ -1380,7 +1504,7 @@ function highlightSelection(color: NoteColor = rememberedColor()) {
     .then(() =>
       toast(made.length === 1 ? 'Trecho realçado.' : `Trecho realçado em ${made.length} páginas.`),
     )
-    .catch(fail);
+    .catch(failing('Não foi possível realçar o trecho.'));
   return true;
 }
 // A note on the passage that is selected. Says whether there was a selection.
@@ -1421,7 +1545,7 @@ async function removeNote(note: Note) {
       run: () =>
         void changeNotes((notes) =>
           notes.some((n) => n.id === id) ? notes : [...notes, note],
-        ).catch(fail),
+        ).catch(failing(FAILED.undo)),
     },
   );
 }
@@ -1439,10 +1563,10 @@ function openNoteMenu(
       edit: (n) => editNote(n),
       color: (n, color) =>
         void changeNotes((notes) => notes.map((x) => (x.id === n.id ? { ...x, color } : x))).catch(
-          fail,
+          failing('Não foi possível mudar a cor do realce.'),
         ),
       copy: (n) => void copyNote(n),
-      remove: (n) => void removeNote(n).catch(fail),
+      remove: (n) => void removeNote(n).catch(failing(FAILED.removeNote)),
     },
     options,
   );
@@ -1464,8 +1588,27 @@ function editNote(existing?: Note, picked?: SelectionCapture | null) {
       `<label class="color-choice"><input type="radio" name="note-color" value="${c}"${c === color ? ' checked' : ''}><span class="swatch" data-color="${c}" aria-hidden="true"></span>${COLOR_LABELS[c]}</label>`,
   ).join('')}</div></fieldset>`;
   const d = modal(
-    `<div class="dialog-heading"><h2>${existing ? 'Editar nota' : 'Nova nota'} <span class="quiet-label">Página ${page}</span></h2>${ib('close-note', 'Fechar', 'close', 'data-close')}</div>${quote ? `<blockquote class="quote-preview">${esc(quote)}</blockquote>` : '<p>Registre uma ideia ou selecione um trecho no PDF para citá-lo.</p>'}${(capture?.pieces.length ?? 0) > 1 ? `<p class="quiet-label">A seleção passa por mais de uma página. A nota guarda só o trecho da página ${page}.</p>` : ''}${rects.length ? colors : ''}<label class="field-label" for="note-text">Sua nota</label><textarea id="note-text" rows="6" maxlength="20000" placeholder="O que você quer lembrar?">${esc(existing?.text || '')}</textarea><div class="dialog-actions">${existing ? `<button id="delete-note" class="text-button danger">${deleteLabel(existing)}</button>` : ''}<button class="secondary" data-close>Cancelar</button><button id="save-note" class="primary">Salvar nota</button></div>`,
+    `<div class="dialog-heading"><h2>${existing ? 'Editar nota' : 'Adicionar nota'} <span class="quiet-label">Página ${page}</span></h2>${ib('close-note', 'Fechar', 'close', 'data-close')}</div>${quote ? `<blockquote class="quote-preview">${esc(quote)}</blockquote>` : '<p>Registre uma ideia ou selecione um trecho no PDF para citá-lo.</p>'}${(capture?.pieces.length ?? 0) > 1 ? `<p class="quiet-label">A seleção passa por mais de uma página. A nota guarda só o trecho da página ${page}.</p>` : ''}${rects.length ? colors : ''}<label class="field-label" for="note-text">Sua nota</label><textarea id="note-text" rows="6" maxlength="20000" placeholder="O que você quer lembrar?" autofocus>${esc(existing?.text || '')}</textarea><div id="note-actions" class="dialog-actions">${existing ? `<button id="delete-note" class="text-button danger">${deleteLabel(existing)}</button>` : ''}<button class="secondary" data-close>Cancelar</button><button id="save-note" class="primary">Salvar nota</button></div><div id="note-discard" class="dialog-actions" role="group" aria-labelledby="note-discard-text" hidden><span id="note-discard-text" class="confirm-text">Descartar o que você escreveu?</span><button id="note-keep" class="secondary" type="button">Continuar editando</button><button id="note-discard-yes" class="primary danger-button" type="button">Descartar</button></div>`,
   );
+  // Esc must not throw away a note that was typed and not saved, without asking. The question is
+  // in the dialog itself; a second Esc, or "Descartar", closes it. The X and "Cancelar" are chosen
+  // on purpose, so they close at once.
+  const field = $<HTMLTextAreaElement>('#note-text'),
+    initial = field.value;
+  const ask = (asking: boolean) => {
+    $('#note-actions').hidden = asking;
+    $('#note-discard').hidden = !asking;
+    (asking ? $('#note-keep') : field).focus();
+  };
+  const onCancel = (e: Event) => {
+    if (field.value === initial || !$('#note-discard').hidden || !e.cancelable) return;
+    e.preventDefault();
+    ask(true);
+  };
+  d.addEventListener('cancel', onCancel);
+  d.addEventListener('close', () => d.removeEventListener('cancel', onCancel), { once: true });
+  $('#note-keep').onclick = () => ask(false);
+  $('#note-discard-yes').onclick = () => d.close();
   $('#save-note').onclick = async () => {
     const text = $<HTMLTextAreaElement>('#note-text').value.trim();
     if (!text && !quote && !rects.length) {
@@ -1494,7 +1637,7 @@ function editNote(existing?: Note, picked?: SelectionCapture | null) {
       if (!rects.length) toggleSidebar('notes');
       toast('Nota salva.');
     } catch (e) {
-      fail(e);
+      fail(e, 'Não foi possível salvar a nota.');
     }
   };
   $('#delete-note')?.addEventListener('click', async () => {
@@ -1502,7 +1645,7 @@ function editNote(existing?: Note, picked?: SelectionCapture | null) {
       await removeNote(existing!);
       d.close();
     } catch (e) {
-      fail(e);
+      fail(e, FAILED.removeNote);
     }
   });
 }
@@ -1511,7 +1654,11 @@ $('#import-main').onclick = () => void importFiles();
 $('#import-folder').onclick = () => void importFolder();
 $('#library-search').oninput = () => {
   query = $<HTMLInputElement>('#library-search').value;
+  const ticked = selected.size;
   renderLibrary();
+  // The drawing takes out of the selection what the search hides: say so once, in the same words
+  // for every key that takes one more out, so that the message is renewed and does not pile up.
+  if (selected.size < ticked) toast('Os documentos que a busca esconde saem da seleção.');
 };
 document
   .querySelectorAll<HTMLElement>('[data-filter]')
@@ -1546,6 +1693,21 @@ $('#view-list').onclick = () => {
   prefs.view = 'list';
   renderLibrary();
 };
+// The arrows choose between the two, as in any radio group, and take the focus along.
+const viewKeys: Record<string, Preferences['view']> = {
+  ArrowLeft: 'grid',
+  ArrowUp: 'grid',
+  ArrowRight: 'list',
+  ArrowDown: 'list',
+};
+$('.segmented').onkeydown = (e) => {
+  const view = viewKeys[e.key];
+  if (!view || e.altKey || e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  prefs.view = view;
+  renderLibrary();
+  $(`#view-${view}`).focus();
+};
 $('#settings').onclick = preferences;
 $('#reader-settings').onclick = preferences;
 $('#help').onclick = showHelp;
@@ -1553,17 +1715,18 @@ $('#theme-toggle').onclick = () => {
   prefs.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   applyPrefs();
 };
-$('#folder-link').onclick = () => void invoke('open_folder').catch(fail);
-$('#back').onclick = () => void closeReader().catch(fail);
-$('#cancel-loading').onclick = () => void closeReader().catch(fail);
+$('#folder-link').onclick = () => void invoke('open_folder').catch(failing(FAILED.folder));
+$('#back').onclick = () => void closeReader().catch(failing(FAILED.back));
+$('#cancel-loading').onclick = () => void closeReader().catch(failing(FAILED.back));
 $('#restart').onclick = restartReading;
 $('#reader-favorite').onclick = () => current && void toggleFavorite(current.id);
 $('#reader-more').onclick = () => current && bookMenu($('#reader-more'), current);
-$('#finish-reading').onclick = () => current && void finishBook(current.id).catch(fail);
-$('#goals').onclick = () => void goals().catch(fail);
-$('#reading-history').onclick = () => void history().catch(fail);
-$('#library-goal').onclick = () => void goals().catch(fail);
-$('#reader-goal').onclick = () => current && void goals(current.id).catch(fail);
+$('#finish-reading').onclick = () =>
+  current && void finishBook(current.id).catch(failing(FAILED.finish));
+$('#goals').onclick = () => void goals().catch(failing(FAILED.goals));
+$('#reading-history').onclick = () => void history().catch(failing(FAILED.history));
+$('#library-goal').onclick = () => void goals().catch(failing(FAILED.goals));
+$('#reader-goal').onclick = () => current && void goals(current.id).catch(failing(FAILED.goals));
 $('#kindle-toggle').onclick = () => {
   setReadingMode(prefs.readingMode === 'kindle' ? 'scroll' : 'kindle');
   $('#viewer-container').focus();
@@ -1590,12 +1753,20 @@ $('#rotate').onclick = () => {
   thumbnails?.refresh();
   if (current && reader) queueReading({ rotation: reader.rotation });
 };
-$('#bookmark').onclick = () => void toggleBookmark().catch(fail);
+$('#bookmark').onclick = () => void toggleBookmark().catch(failing(FAILED.bookmark));
 $('#paper-toggle').onclick = () => {
-  prefs.paper = prefs.paper === 'dark' ? 'light' : 'dark';
+  prefs.paper = nextPaper(prefs.paper);
   applyPrefs();
 };
-$('#fullscreen').onclick = () => void chrome.toggle();
+$('#fullscreen').onclick = () =>
+  void chrome.toggle().then(() => {
+    // Only the first time: the bars are away, and nothing on the screen says how to bring them back.
+    if (document.body.classList.contains('reader-fullscreen'))
+      showHint(
+        'fullscreen',
+        'Tela cheia: leve o mouse ao topo ou à parte inferior para mostrar os controles. Esc sai.',
+      );
+  });
 $('#sidebar-toggle').onclick = () => toggleSidebar();
 document
   .querySelectorAll<HTMLElement>('[data-tab]')
@@ -1659,7 +1830,9 @@ bindShortcuts({
   dismissSelection: () => selectionBar.dismiss(),
 });
 async function init() {
-  await getCurrentWindow().onResized(() => void chrome.sync().catch(fail));
+  await getCurrentWindow().onResized(
+    () => void chrome.sync().catch(failing('Não foi possível atualizar a tela cheia.')),
+  );
   await chrome.sync();
   await refresh();
   // Books that came without a cover or a page count (an import from before, or one that was cut
@@ -1687,14 +1860,16 @@ async function init() {
         await chrome.exit().catch(() => {});
         await flushReading();
         await getCurrentWindow().destroy();
-      } catch {
-        toast('Não foi possível salvar a posição. Tente novamente.');
+      } catch (error) {
+        // The window stays open and the position is not lost. A failed save has told why (see
+        // `flushReading`); anything else is said here.
+        fail(error, 'Não foi possível fechar o Fólio.');
       }
     }
   });
   // The PDFs the app was opened with wait in the backend; a second launch says there are more.
-  await listen('open-files', () => void takeLaunched().catch(fail));
-  void takeLaunched().catch(fail);
+  await listen('open-files', () => void takeLaunched().catch(failing(FAILED.openFiles)));
+  void takeLaunched().catch(failing(FAILED.openFiles));
 }
 void init().catch((e) => {
   const { message, detail } = describeError(e);

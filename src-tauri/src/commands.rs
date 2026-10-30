@@ -177,6 +177,19 @@ pub fn open_folder(state: tauri::State<Store>) -> Result<()> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+// The Explorer on the folder of a file, with the file chosen: where an export was saved.
+#[tauri::command]
+pub fn reveal_file(path: String) -> Result<()> {
+    let path = PathBuf::from(path);
+    // A file that is gone says so, in the words of the system, instead of opening some other folder.
+    std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    std::process::Command::new("explorer.exe")
+        .arg("/select,")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
 #[tauri::command]
 pub async fn export_pdf(
     id: String,

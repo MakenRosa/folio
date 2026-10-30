@@ -71,6 +71,12 @@ function dismiss(t: Entry, now = false) {
   setTimeout(() => t.el.remove(), LEAVE);
 }
 
+// What a screen said does not follow the reader to the next one: the messages that are not errors
+// leave at once. An error stays until it is closed, on whichever screen.
+export function dismissNotices() {
+  for (const t of [...stack]) if (t.kind !== 'error') dismiss(t, true);
+}
+
 function bind(host: HTMLElement) {
   bound = true;
   host.addEventListener('focusin', (e) => {

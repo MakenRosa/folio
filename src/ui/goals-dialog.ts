@@ -24,7 +24,18 @@ export function showGoals(
   },
   initial?: string,
 ) {
-  let scope = initial || 'global';
+  let scope = initial || 'global',
+    drawn = false;
+  // What the goal of the scope says of today. It is drawn again, alone, when the day's total changes.
+  const today = (books: Book[], book?: Book) => {
+    const goal = book ? effectiveGoal(book, prefs.dailyGoal) : prefs.dailyGoal;
+    const count = goal
+      ? book && book.readingGoal?.mode === 'custom'
+        ? dayCount(book, goal.unit)
+        : globalCount(books, goal)
+      : 0;
+    return `<strong>Hoje</strong><span id="goal-current">${goal ? esc(goalLabel(goal, count)) : 'Nenhuma meta ativa'}</span>${goal ? `<progress aria-label="Progresso da meta de hoje" max="${goal.target}" value="${Math.min(count, goal.target)}"></progress>` : ''}`;
+  };
   const render = () => {
     const books = actions.books();
     const book = books.find((b) => b.id === scope);
@@ -34,22 +45,20 @@ export function showGoals(
     const mode = book ? own?.mode || 'inherit' : prefs.dailyGoal ? 'custom' : 'none';
     const unit = own?.unit || goal?.unit || 'pages';
     const target = own?.target || goal?.target || 10;
-    const count = goal
-      ? book && own?.mode === 'custom'
-        ? dayCount(book, goal.unit)
-        : globalCount(books, goal)
-      : 0;
-    const d =
-      modal(`<div class="dialog-heading"><div><span class="eyebrow">UM POUCO A CADA DIA</span><h2>Metas de leitura</h2></div>${ib('goals-close', 'Fechar metas', 'close', 'data-close')}</div>
-      <label class="field-label" for="goal-scope">Configurar para</label><select id="goal-scope" class="text-field"><option value="global">Aplicação inteira</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select>
-      <p class="mode-description">A meta geral soma os livros que usam essa configuração. Livros com meta própria ou sem meta ficam fora dessa soma.</p>
-      <div class="goal-status"><strong>Hoje</strong><span id="goal-current">${goal ? esc(goalLabel(goal, count)) : 'Nenhuma meta ativa'}</span>${goal ? `<progress aria-label="Progresso da meta de hoje" max="${goal.target}" value="${Math.min(count, goal.target)}"></progress>` : ''}</div>
+    const d = modal(
+      `<div class="dialog-heading"><div><span class="eyebrow">UM POUCO A CADA DIA</span><h2>Metas de leitura</h2></div>${ib('goals-close', 'Fechar metas', 'close', 'data-close')}</div>
+      <label class="field-label" for="goal-scope">Configurar para</label><select id="goal-scope" class="text-field"><option value="global">Biblioteca inteira</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select>
+      <p class="mode-description">A meta geral soma os documentos que usam essa configuração. Documentos com meta própria ou sem meta ficam fora dessa soma.</p>
+      <div class="goal-status">${today(books, book)}</div>
       <label class="field-label" for="goal-mode">Meta diária</label><select id="goal-mode" class="text-field">${book ? '<option value="inherit">Usar meta geral</option>' : ''}<option value="custom">${book ? 'Meta própria' : 'Definir meta geral'}</option><option value="none">Sem meta</option></select>
       <div id="goal-fields" class="goal-fields"><div><label class="field-label" for="goal-target">Quantidade por dia</label><input id="goal-target" class="text-field" type="number" min="1" max="10000" step="1" value="${target}" required></div><div><label class="field-label" for="goal-unit">Medir em</label><select id="goal-unit" class="text-field"><option value="pages">Páginas</option><option value="chapters">Capítulos</option></select></div></div>
-      <details class="goal-rules"><summary>Como a contagem funciona</summary><p class="mode-description">A leitura é acompanhada mesmo sem meta. Páginas do PDF, não telas do Kindle, contam após 8 segundos com o leitor ativo. Voltar à mesma página não soma novamente no dia. Capítulos contam ao avançar da última página acompanhada para o próximo capítulo reconhecido, ou ao chegar ao fim do documento. Saltos não contam páginas intermediárias. Você pode corrigir os totais abaixo.</p><p class="mode-description">O dia muda à meia-noite do seu computador. Os totais diários ficam salvos localmente no histórico. Concluir um livro não acrescenta automaticamente suas páginas à meta.</p></details>
+      <details class="goal-rules"><summary>Como a contagem funciona</summary><p class="mode-description">A leitura é acompanhada mesmo sem meta. Páginas do PDF, não telas do Kindle, contam após 8 segundos com o leitor ativo. Voltar à mesma página não soma novamente no dia. Capítulos contam ao avançar da última página acompanhada para o próximo capítulo reconhecido, ou ao chegar ao fim do documento. Saltos não contam páginas intermediárias. Você pode corrigir os totais abaixo.</p><p class="mode-description">O dia muda à meia-noite do seu computador. Os totais diários ficam salvos localmente no histórico. Concluir um documento não acrescenta automaticamente suas páginas à meta.</p></details>
       <div class="dialog-actions"><button id="goal-history" class="secondary">Ver histórico</button><button id="goal-save" class="primary">Salvar meta</button></div>
-      <details class="goal-adjust"><summary>Ajustar leitura de hoje</summary><p class="mode-description">Use para registrar leitura feita antes da atualização, fora do Fólio ou em capítulos não reconhecidos. Informe o total de hoje, não um acréscimo.</p><label class="field-label" for="goal-log-book">Livro</label><select id="goal-log-book" class="text-field">${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select><div class="goal-fields"><div><label class="field-label" for="goal-pages">Páginas lidas hoje</label><input id="goal-pages" class="text-field" type="number" min="0" max="100000" step="1" required></div><div><label class="field-label" for="goal-chapters">Capítulos concluídos hoje</label><input id="goal-chapters" class="text-field" type="number" min="0" max="100000" step="1" required></div></div><button id="goal-log-save" class="secondary">Salvar leitura de hoje</button></details>
-      `);
+      <details class="goal-adjust"><summary>Ajustar leitura de hoje</summary><p class="mode-description">Use para registrar leitura feita antes da atualização, fora do Fólio ou em capítulos não reconhecidos. Informe o total de hoje, não um acréscimo.</p><label class="field-label" for="goal-log-book">Documento</label><select id="goal-log-book" class="text-field">${books.map((b) => `<option value="${esc(b.id)}">${esc(b.title)}</option>`).join('')}</select><div class="goal-fields"><div><label class="field-label" for="goal-pages">Páginas lidas hoje</label><input id="goal-pages" class="text-field" type="number" min="0" max="100000" step="1" required></div><div><label class="field-label" for="goal-chapters">Capítulos concluídos hoje</label><input id="goal-chapters" class="text-field" type="number" min="0" max="100000" step="1" required></div></div><button id="goal-log-save" class="secondary">Salvar leitura de hoje</button></details>
+      `,
+      drawn,
+    );
+    drawn = true;
     $<HTMLSelectElement>('#goal-scope').value = scope;
     $('#goal-scope').onchange = () => {
       scope = $<HTMLSelectElement>('#goal-scope').value;
@@ -81,7 +90,7 @@ export function showGoals(
         d.close();
         toast('Meta salva.');
       } catch (e) {
-        fail(e);
+        fail(e, 'Não foi possível salvar a meta.');
       }
     };
     if (book) $<HTMLSelectElement>('#goal-log-book').value = book.id;
@@ -118,10 +127,16 @@ export function showGoals(
           }),
         });
         actions.apply();
-        render();
+        // Only the total of today changes: the rest of the dialog, the focus and what was typed stay.
+        const books = actions.books();
+        $('.goal-status').innerHTML = today(
+          books,
+          books.find((x) => x.id === scope),
+        );
+        fill();
         toast('Leitura de hoje atualizada.');
       } catch (e) {
-        fail(e);
+        fail(e, 'Não foi possível salvar o registro de leitura.');
       }
     };
   };

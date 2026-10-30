@@ -2,22 +2,62 @@ import { $ } from './dom';
 import { isTypedCharacter, menuIndexAfterKey, typeaheadIndex } from './menu-navigation';
 import { placePopover, pointBox } from './popover-position';
 import { toast } from './toast-stack';
-import { describeError } from './error-text';
-export { toast, type ToastAction, type ToastOptions } from './toast-stack';
+import { GENERIC_ERROR, describeError } from './error-text';
+export { toast, dismissNotices, type ToastAction, type ToastOptions } from './toast-stack';
+// An error that the reader was already told about: whoever catches it further up has nothing
+// to add, so `fail` ignores it and the same failure is not shown twice.
+export class ReportedError extends Error {}
 // A failure, in a sentence the reader understands. It stays until it is closed, and the
 // original text of the error is one click away, under "Detalhes". `context` says what was
-// being done: "Não foi possível abrir este PDF." comes before the reason.
+// being done: "Não foi possível abrir este PDF." comes before the reason. When there is no
+// rule for the reason, the context says it all; when the reason already says it, it stands alone.
 export function fail(error: unknown, context?: string) {
+  if (error instanceof ReportedError) return;
   console.error(error);
   const { message, detail } = describeError(error);
-  toast(context ? `${context} ${message}` : message, undefined, { kind: 'error', detail });
+  const text =
+    !context || message.startsWith(context)
+      ? message
+      : `${context} ${message === GENERIC_ERROR ? 'Tente novamente.' : message}`;
+  toast(text, undefined, { kind: 'error', detail });
 }
-export function modal(content: string) {
+// `fail` with its context, for a `.catch(...)`.
+export const failing = (context: string) => (error: unknown) => fail(error, context);
+// The fields a dialog can start on: the ones that take text or a choice, not a switch or a radio.
+const START_FIELDS =
+  'input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)';
+// Where the focus goes when a dialog opens: what the dialog marks with `autofocus`, else its first
+// field, else its main action (never one that destroys). Without this the first stop is the X of the
+// header, and keys typed right away (an Enter, even) land on it instead of on the task.
+function focusStart(d: HTMLElement) {
+  const visible = (el: HTMLElement) => !el.closest('[hidden]');
+  const target =
+    [...d.querySelectorAll<HTMLElement>('[autofocus]')].find(visible) ??
+    [...d.querySelectorAll<HTMLElement>(START_FIELDS)].find(visible) ??
+    d.querySelector<HTMLElement>('button.primary:not(.danger-button):not(:disabled)');
+  target?.focus({ preventScroll: true });
+}
+// Shows a dialog, from its start: at the top, with the focus where `focusStart` puts it. With `again`
+// it is the dialog that is on screen, drawn again because a choice in it changed what it shows: the
+// scroll stays, the focus stays on the control that had it (found by its `id`), and so do the panels
+// (`<details>`) that were open.
+export function modal(content: string, again = false) {
   closePopover();
-  $('#dialog-content').innerHTML = content;
-  const d = $<HTMLDialogElement>('#dialog');
+  const d = $<HTMLDialogElement>('#dialog'),
+    body = $('#dialog-content');
+  const active = again && body.contains(document.activeElement) ? document.activeElement : null;
+  const keep = active instanceof HTMLElement ? active.id : '';
+  const panels = again ? [...body.querySelectorAll('details')].map((panel) => panel.open) : [];
+  body.innerHTML = content;
   if (!d.open) d.showModal();
+  // The dialog is one element for all of them, and the browser keeps where it was scrolled to.
+  if (!again) d.scrollTop = 0;
   d.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => d.close()));
+  const found = keep ? document.getElementById(keep) : null;
+  if (found && body.contains(found) && !found.matches(':disabled')) {
+    body.querySelectorAll('details').forEach((panel, i) => (panel.open = panels[i] ?? panel.open));
+    found.focus({ preventScroll: true });
+  } else focusStart(d);
   return d;
 }
 // The one floating panel: a menu of actions (role "menu") or a small dialog, like the quick

@@ -30,6 +30,8 @@ type LibraryViewActions = {
   ) => void;
   restoreBook: (id: string) => void;
   applyPrefs: () => void;
+  // The way out of a search that found nothing: clears the field and draws the list again.
+  clearSearch: () => void;
 };
 function cover(b: Book, folder: string) {
   return `<div class="book-cover" data-hue="${parseInt(b.hash.slice(0, 2) || '12', 16) % 5}">${b.cover ? `<img src="${asset(`${folder}/covers/${b.id}.png`)}" alt="" loading="lazy" decoding="async">` : `<div class="paper-preview"><span>PDF</span><div class="paper-lines"></div>${icon('file')}</div>`}</div>`;
@@ -50,6 +52,13 @@ function bookInfo(b: Book, hit: SearchHit | null = null) {
   const tags = tagsOf(b);
   return `<div class="book-info"><h3 title="${esc(b.title)}">${esc(b.title)}</h3>${b.author ? `<p class="book-author" title="${esc(b.author)}">${esc(b.author)}</p>` : ''}${tags.length ? tagLine(tags) : ''}${hit === 'notes' ? `<p class="book-found">${icon('note')} Encontrado nas notas</p>` : ''}<p>${b.pages ? `${b.pages} página${b.pages === 1 ? '' : 's'} <span>·</span> ` : ''}${size(b.size)}</p><div class="book-state">${b.finished ? `<span class="finished-badge">${icon('check')} Concluído</span>${progressBar(b)}` : b.lastOpened ? `<span>Página ${b.page}${b.pages ? ` de ${b.pages} · ${readingProgress(b)}%` : ''}</span>${progressBar(b)}` : '<span class="new-badge">Ainda não lido</span>'}</div></div>`;
 }
+// The cover of a card with its text. It opens the book; in Removidos it is only a block of text
+// (a button that cannot be pressed would be announced as unavailable and dimmed), and the click goes
+// through to the card, which can still be ticked.
+const cardCover = (b: Book, removed: boolean, content: string) =>
+  removed
+    ? `<div class="book-open">${content}</div>`
+    : `<button class="book-open" data-open="${b.id}" aria-label="Ler ${esc(b.title)}">${content}</button>`;
 const favoriteLabel = (b: Book) =>
   `${b.favorite ? 'Remover dos favoritos' : 'Favoritar'} ${b.title}`;
 const cardOf = (id: string) =>
@@ -117,16 +126,23 @@ export function updateSelection(state: Pick<LibraryViewState, 'snapshot' | 'filt
   // A bar that goes away must not take the focus with it.
   if (leaving)
     (
-      $('#books').querySelector<HTMLElement>('.book-open:not(:disabled), [data-restore]') ??
-      $('#library-search')
+      $('#books').querySelector<HTMLElement>('[data-open], [data-restore]') ?? $('#library-search')
     ).focus({ preventScroll: true });
 }
 // Draws the library: the side bar's tags and counts, the title of the filter and the cards. Says
 // which cards are on screen, in order.
 export function renderLibraryView(state: LibraryViewState, actions: LibraryViewActions) {
   const { snapshot, filter, query, prefs, selected } = state;
-  const { openBook, importFiles, importFolder, toggleFavorite, bookMenu, restoreBook, applyPrefs } =
-    actions;
+  const {
+    openBook,
+    importFiles,
+    importFolder,
+    toggleFavorite,
+    bookMenu,
+    restoreBook,
+    applyPrefs,
+    clearSearch,
+  } = actions;
   const all = snapshot.books;
   const known = tagCounts(all);
   const counts = {
@@ -165,6 +181,12 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
   $('#library-subtitle').textContent = subtitle;
   $('#library-total').textContent =
     `${documents(all.length)} · ${size(all.reduce((v, b) => v + b.size, 0))}`;
+  // It counts the library, not the list: in Removidos the list is the trash, and the bar under
+  // the title already says what is there.
+  $('#library-total').hidden = filter === 'trash';
+  // The goal is for reading: it stays out of Removidos, of a search and of the filters that are not
+  // the reading itself.
+  $('#library-goal').hidden = (filter !== 'all' && filter !== 'reading') || !!query;
   $('#trash-bar').hidden = filter !== 'trash' || !snapshot.trash.length;
   $('#trash-summary').textContent =
     `${documents(snapshot.trash.length)} · ${size(snapshot.trash.reduce((v, b) => v + b.size, 0))} que podem ser liberados`;
@@ -220,14 +242,15 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
   grid.innerHTML = books
     .map(
       (b) =>
-        `<article class="book-card" data-book="${b.id}"><input type="checkbox" class="select-check" data-select="${b.id}" aria-label="Selecionar ${esc(b.title)}"><button class="book-open" data-open="${b.id}" ${filter === 'trash' ? 'disabled' : ''} aria-label="Ler ${esc(b.title)}">${cover(b, snapshot.folder)}${bookInfo(b, hits.get(b.id))}</button><div class="card-actions">${filter === 'trash' ? `<button class="text-button" data-restore="${b.id}">${icon('undo')} Restaurar</button><button class="icon-button" data-menu="${b.id}" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>` : `<button class="icon-button ${b.favorite ? 'selected' : ''}" data-favorite="${b.id}" title="${b.favorite ? 'Remover dos favoritos' : 'Favoritar'}" aria-label="${esc(favoriteLabel(b))}">${icon('star')}</button><button class="icon-button" data-menu="${b.id}" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}</div></article>`,
+        `<article class="book-card" data-book="${b.id}"><input type="checkbox" class="select-check" data-select="${b.id}" aria-label="Selecionar ${esc(b.title)}">${cardCover(b, filter === 'trash', `${cover(b, snapshot.folder)}${bookInfo(b, hits.get(b.id))}`)}<div class="card-actions">${filter === 'trash' ? `<button class="text-button" data-restore="${b.id}">${icon('undo')} Restaurar</button><button class="icon-button" data-menu="${b.id}" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>` : `<button class="icon-button ${b.favorite ? 'selected' : ''}" data-favorite="${b.id}" title="${b.favorite ? 'Remover dos favoritos' : 'Favoritar'}" aria-label="${esc(favoriteLabel(b))}">${icon('star')}</button><button class="icon-button" data-menu="${b.id}" title="Opções do documento" aria-label="Opções de ${esc(b.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button>`}</div></article>`,
     )
     .join('');
   $('#empty').innerHTML = books.length
     ? ''
-    : `<div class="empty-state"><div class="empty-illustration">${icon(query ? 'search' : 'book')}</div><span class="eyebrow">${query ? 'TENTE OUTRO TERMO' : 'SUA PRÓXIMA LEITURA COMEÇA AQUI'}</span><h2>${query ? 'Nenhum PDF encontrado' : filter === 'all' ? 'Um lugar para suas leituras' : filter === 'trash' ? 'Nenhum documento removido' : 'Nenhum documento por aqui'}</h2><p>${query ? 'Busque pelo título, autor, nome do arquivo, etiquetas ou notas.' : filter === 'all' ? 'Adicione um PDF ou uma coleção inteira.<br>O Fólio cuida da biblioteca. Você aproveita a leitura.' : filter === 'favorites' ? 'Marque a estrela de um PDF para encontrá-lo aqui.' : filter === 'reading' ? 'Abra um PDF para acompanhar sua leitura aqui.' : filter === 'finished' ? 'Use “Marcar como concluído” nas opções de um PDF.' : tag !== null ? 'Adicione esta etiqueta a um documento pelo menu dele.' : 'Documentos removidos da biblioteca aparecem aqui.'}</p>${filter === 'all' && !query ? `<button id="import-empty" class="primary">${icon('plus')} Escolher PDFs</button><button id="import-folder-empty" class="text-button">${icon('folder')} Adicionar uma pasta</button><small>Ou arraste PDFs e pastas para esta janela</small>` : ''}</div>`;
+    : `<div class="empty-state"><div class="empty-illustration">${icon(query ? 'search' : 'book')}</div><span class="eyebrow">${query ? 'TENTE OUTRO TERMO' : 'SUA PRÓXIMA LEITURA COMEÇA AQUI'}</span><h2>${query ? 'Nenhum documento encontrado' : filter === 'all' ? 'Um lugar para suas leituras' : filter === 'trash' ? 'Nenhum documento removido' : 'Nenhum documento por aqui'}</h2><p>${query ? 'Busque pelo título, autor, nome do arquivo, etiquetas ou notas.' : filter === 'all' ? 'Adicione um PDF ou uma coleção inteira.<br>O Fólio cuida da biblioteca. Você aproveita a leitura.' : filter === 'favorites' ? 'Marque a estrela de um documento para encontrá-lo aqui.' : filter === 'reading' ? 'Abra um documento para acompanhar sua leitura aqui.' : filter === 'finished' ? 'Use “Marcar como concluído” nas opções de um documento.' : tag !== null ? 'Adicione esta etiqueta a um documento pelo menu dele.' : 'Documentos removidos da biblioteca aparecem aqui.'}</p>${query ? `<button id="clear-search" class="secondary">${icon('close')} Limpar busca</button>` : filter === 'all' ? `<button id="import-empty" class="primary">${icon('plus')} Escolher PDFs</button><button id="import-folder-empty" class="text-button">${icon('folder')} Adicionar uma pasta</button><small>Ou arraste PDFs e pastas para esta janela</small>` : ''}</div>`;
   $('#import-empty')?.addEventListener('click', () => importFiles());
   $('#import-folder-empty')?.addEventListener('click', () => importFolder());
+  $('#clear-search')?.addEventListener('click', () => clearSearch());
   // Ctrl + click ticks a card, Shift + click ticks up to it; with neither, the click is the
   // card's own. The keyboard does the same: Ctrl + Enter or Shift + Enter on the card.
   const how = (e: MouseEvent) => (e.shiftKey ? 'range' : e.ctrlKey || e.metaKey ? 'toggle' : null);
@@ -257,12 +280,11 @@ export function renderLibraryView(state: LibraryViewState, actions: LibraryViewA
   const cardAt = (target: EventTarget | null) =>
     (target as HTMLElement | null)?.closest<HTMLElement>('.book-card') ?? null;
   const control = (card: HTMLElement) =>
-    card.querySelector<HTMLElement>('.book-open:not(:disabled), [data-restore]')!;
+    card.querySelector<HTMLElement>('[data-open], [data-restore]')!;
   const anchorOf = (card: HTMLElement) =>
     card.querySelector<HTMLElement>('[data-menu]') ?? control(card);
   const bookOf = (card: HTMLElement) => find(card.dataset.book!);
-  // In Removidos the cover opens nothing and lets the click through to the card: it can still be
-  // ticked there.
+  // In Removidos the cover opens nothing: the click is the card's, which can still be ticked.
   grid.onclick = (e) => {
     const card = cardAt(e.target);
     const mode = how(e);
@@ -316,7 +338,7 @@ export function updateBookCard(state: LibraryViewState, book: Book, before: Book
       .querySelector('.book-info')
       ?.replaceWith(htmlOf(bookInfo(book, query ? searchBook(book, query) : null)));
     // A button keeps its place; only what a screen reader says about it changes.
-    card.querySelector('.book-open')?.setAttribute('aria-label', `Ler ${book.title}`);
+    card.querySelector('[data-open]')?.setAttribute('aria-label', `Ler ${book.title}`);
     card.querySelector('[data-select]')?.setAttribute('aria-label', `Selecionar ${book.title}`);
     card.querySelector('[data-favorite]')?.setAttribute('aria-label', favoriteLabel(book));
     card.querySelector('[data-menu]')?.setAttribute('aria-label', `Opções de ${book.title}`);
@@ -339,7 +361,7 @@ export function revealBook(id: string): boolean {
   if (!card) return false;
   const bring = () => card.scrollIntoView({ block: 'center' });
   bring();
-  card.querySelector<HTMLElement>('.book-open')?.focus({ preventScroll: true });
+  card.querySelector<HTMLElement>('[data-open]')?.focus({ preventScroll: true });
   // Cards far from the screen are drawn only when they get near it, and their real height is
   // known then: once more, after that.
   requestAnimationFrame(bring);

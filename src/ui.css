@@ -9,8 +9,9 @@
   --panel: #fffefa;
   --sidebar: #efeee8;
   --text: #252f2c;
-  --muted: #737972;
+  --muted: #5f6861;
   --line: #e2e4dc;
+  --field-line: #868d84;
   --accent: #3f6554;
   --accent-hover: #315442;
   --soft: #e6ede5;
@@ -18,6 +19,43 @@
   --reader: #e5e7e3;
   --surface: #ffffff;
   --danger: #a0443d;
+  /* The day of a goal that was missed. */
+  --missed: #ad8251;
+  /* The type scale: a few named sizes, and each role takes one. Nothing that informs is below
+     --fs-label (11px): --fs-micro is for key caps and the like. The supporting text of a dialog
+     and its captions are --fs-body (12px) or more. */
+  --fs-micro: 10px;
+  --fs-label: 11px;
+  --fs-small: 11px;
+  --fs-body: 12px;
+  --fs-strong: 13px;
+  --fs-subtitle: 18px;
+  --fs-title: 21px;
+  --fs-display: 32px;
+  /* Motion: the quick one for a control that answers, the other for what moves into place. */
+  --motion-fast: 0.12s;
+  --motion-base: 0.18s;
+  --ease-out: ease-out;
+  /* What a control that cannot be used looks like, whatever it is. */
+  --disabled-opacity: 0.38;
+  /* The height of a cover in the grid: the buttons of a card hang from it. */
+  --cover-h: 220px;
+  /* The frame of a cover: five quiet tones, one for each hue of a card. The page or the image in
+     the middle is light in any theme; only the frame follows the theme. */
+  --cover-0: #ebece6;
+  --cover-1: #e8e7e0;
+  --cover-2: #e5e9e8;
+  --cover-3: #e8e2dc;
+  --cover-4: #e2e7de;
+  /* The surface around the page for each paper of the reader (the same in both themes), and the
+     sample of it on the paper button. */
+  --paper-light: #fffefa;
+  --paper-sepia: #d9cfbd;
+  --paper-dark: #171b1b;
+  /* The height of the top of the library, which stays in view while the list scrolls. */
+  --library-top-h: 87px;
+  /* The room at the sides of the bars of the reader, so that their edges line up. */
+  --reader-inset: 20px;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -25,8 +63,9 @@
   --panel: #222925;
   --sidebar: #1d231f;
   --text: #e3e9e2;
-  --muted: #a2afa4;
+  --muted: #aab6ac;
   --line: #354038;
+  --field-line: #6b7a6f;
   --accent: #b5cfb1;
   --accent-hover: #c8dec3;
   --soft: #334637;
@@ -34,6 +73,12 @@
   --reader: #151a17;
   --surface: #29312b;
   --danger: #efa39a;
+  --missed: #c9a06c;
+  --cover-0: #2a332e;
+  --cover-1: #2d332d;
+  --cover-2: #28332f;
+  --cover-3: #302f2b;
+  --cover-4: #29312a;
   color: var(--text);
   background: var(--bg);
 }
@@ -61,12 +106,12 @@ button {
   border: 0;
   border-radius: 7px;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
   white-space: nowrap;
 }
 button:disabled {
-  opacity: 0.38;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 button:hover:not(:disabled) {
@@ -82,12 +127,22 @@ textarea:focus-visible {
 button svg {
   flex-shrink: 0;
 }
+/* The line of an icon is as thick at one size as at another: it is measured on the screen, not in
+   the 24-unit drawing. The big drawings of the empty states and of the drop have a heavier one. */
+svg.icon :is(path, circle, rect) {
+  vector-effect: non-scaling-stroke;
+}
+.empty-illustration svg,
+.continue-art > svg,
+#drop-overlay svg {
+  stroke-width: 2;
+}
 input,
 select,
 textarea {
   color: var(--text);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: 7px;
 }
 input {
@@ -120,13 +175,13 @@ p {
   margin: 0;
 }
 h1 {
-  font-size: 32px;
+  font-size: var(--fs-display);
   font-weight: 600;
   letter-spacing: -1px;
   line-height: 1.2;
 }
 h2 {
-  font-size: 23px;
+  font-size: var(--fs-title);
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -135,7 +190,7 @@ h3 {
 }
 kbd {
   font:
-    10px 'Segoe UI',
+    var(--fs-label) 'Segoe UI',
     sans-serif;
   color: var(--muted);
   padding: 3px 5px;
@@ -148,7 +203,7 @@ kbd {
   color: var(--panel);
   padding: 12px 18px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
   border: 1px solid transparent;
 }
 .primary:hover:not(:disabled) {
@@ -162,7 +217,7 @@ kbd {
   background: var(--panel);
   padding: 10px 14px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .icon-button {
   width: 34px;
@@ -185,7 +240,7 @@ kbd {
 .text-button {
   padding: 7px 4px;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .text-button svg {
@@ -193,13 +248,13 @@ kbd {
   height: 15px;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: var(--fs-label);
   font-weight: 600;
   letter-spacing: 1.6px;
   color: var(--muted);
 }
 .quiet-label {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .status-dot {
@@ -250,7 +305,7 @@ kbd {
 }
 .brand > div > span {
   display: block;
-  font-size: 8px;
+  font-size: var(--fs-label);
   font-weight: 500;
   letter-spacing: 2.5px;
   color: var(--muted);
@@ -261,7 +316,7 @@ kbd {
   overflow: hidden;
   padding: 11px 12px;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   justify-content: flex-start;
 }
 .add-button svg {
@@ -295,7 +350,7 @@ kbd {
   background: currentColor;
   transform-origin: left;
   transform: scaleX(var(--import-progress, 0));
-  transition: transform 0.2s ease-out;
+  transition: transform var(--motion-base) var(--ease-out);
 }
 /* A quiet second way in, under the button: a whole folder, with its subfolders. */
 .add-folder {
@@ -303,7 +358,7 @@ kbd {
   margin: 4px 0 0 6px;
   padding: 5px 8px;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-weight: 500;
 }
 .add-folder svg {
@@ -312,13 +367,13 @@ kbd {
 }
 .add-button kbd {
   margin-left: auto;
-  font-size: 9px;
+  font-size: var(--fs-micro);
   background: #fff1;
   color: inherit;
   border-color: #fff3;
 }
 .nav-label {
-  font-size: 9px;
+  font-size: var(--fs-label);
   letter-spacing: 1.4px;
   font-weight: 600;
   color: var(--muted);
@@ -330,7 +385,7 @@ kbd {
   text-align: left;
   padding: 12px 14px;
   margin: 3px 0;
-  font-size: 12px;
+  font-size: var(--fs-body);
   gap: 11px;
   color: var(--muted);
 }
@@ -342,7 +397,7 @@ kbd {
   flex: 1;
 }
 .nav-item small {
-  font-size: 10px;
+  font-size: var(--fs-label);
   font-weight: 600;
 }
 .nav-item.active {
@@ -361,12 +416,12 @@ kbd {
   margin: 20px 14px 22px;
   padding: 16px 0 18px;
   border-bottom: 1px solid var(--line);
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--text);
 }
 .local-note > span:last-child {
   display: block;
-  font-size: 10px;
+  font-size: var(--fs-label);
   color: var(--muted);
   margin: 7px 0 0 11px;
 }
@@ -375,13 +430,20 @@ kbd {
   grid-row: 1;
   overflow: auto;
   scrollbar-gutter: stable;
+  /* A card that the focus brings into view is not left under the top. */
+  scroll-padding-top: var(--library-top-h);
 }
+/* The search and the theme stay at the top while the list scrolls under them. */
 .library-top {
-  height: 87px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--library-top-h);
   padding: 0 42px;
   display: flex;
   align-items: center;
   gap: 18px;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .library-top > .eyebrow {
@@ -392,7 +454,7 @@ kbd {
   align-items: center;
   gap: 9px;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: 7px;
   padding: 0 12px;
   color: var(--muted);
@@ -406,7 +468,7 @@ kbd {
   flex: 1;
   height: 100%;
   width: 100%;
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .search-input:focus-within {
   border-color: var(--accent);
@@ -436,7 +498,7 @@ kbd {
 }
 .heading-row p {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-strong);
   margin-top: 10px;
 }
 .heading-row > .quiet-label {
@@ -489,18 +551,17 @@ kbd {
   min-width: 0;
 }
 .continue-info h2 {
-  font-size: 21px;
+  font-size: var(--fs-title);
   margin: 9px 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .continue-info > span:last-child {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .continue-info > .eyebrow {
-  font-size: 8px;
   color: var(--accent);
   letter-spacing: 1.3px;
 }
@@ -508,7 +569,6 @@ kbd {
   padding: 0 8px;
 }
 #continue > .primary {
-  font-size: 12px;
   flex-shrink: 0;
 }
 .collection-toolbar {
@@ -519,7 +579,7 @@ kbd {
   margin: 0 0 21px;
 }
 .collection-toolbar > span {
-  font-size: 9px;
+  font-size: var(--fs-label);
   font-weight: 600;
   letter-spacing: 1.3px;
   color: var(--muted);
@@ -532,7 +592,7 @@ kbd {
 .collection-toolbar select {
   border: 0;
   background: none;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .segmented {
@@ -577,36 +637,36 @@ kbd {
 .book-open:hover:not(:disabled) {
   background: none;
 }
-.book-open:hover .book-cover {
+button.book-open:hover .book-cover {
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   box-shadow: 0 4px 14px #263d2910;
 }
 .book-cover {
-  height: 220px;
+  height: var(--cover-h);
   border-radius: 8px;
-  background: #ebece6;
+  background: var(--cover-0);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e2e3da;
+  border: 1px solid var(--line);
   overflow: hidden;
   padding: 21px 25px;
   transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
   position: relative;
 }
 .book-cover[data-hue='1'] {
-  background: #e8e7e0;
+  background: var(--cover-1);
 }
 .book-cover[data-hue='2'] {
-  background: #e5e9e8;
+  background: var(--cover-2);
 }
 .book-cover[data-hue='3'] {
-  background: #e8e2dc;
+  background: var(--cover-3);
 }
 .book-cover[data-hue='4'] {
-  background: #e2e7de;
+  background: var(--cover-4);
 }
 .book-cover img {
   object-fit: contain;
@@ -627,7 +687,7 @@ kbd {
 }
 .paper-preview > span {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 2px;
   margin-bottom: 13px;
@@ -657,15 +717,24 @@ kbd {
   padding: 13px 1px 9px;
 }
 .book-info h3 {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-right: 56px;
 }
+/* In the grid the title is what tells one card from another: it gets two lines before the dots.
+   The list has the whole width of the row, and one line is enough there. */
+.book-grid .book-info h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .book-info p {
-  font-size: 10px;
+  font-size: var(--fs-label);
   color: var(--muted);
   margin: 5px 0 13px;
 }
@@ -681,7 +750,7 @@ kbd {
   padding-right: 56px;
 }
 .book-state {
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: var(--muted);
   height: 25px;
 }
@@ -698,9 +767,6 @@ kbd {
   display: block;
   border-radius: 4px;
 }
-.new-badge {
-  font-size: 9px;
-}
 .finished-badge {
   display: inline-flex;
   align-items: center;
@@ -714,7 +780,7 @@ kbd {
 .card-actions {
   position: absolute;
   right: -3px;
-  top: 226px;
+  top: calc(var(--cover-h) + 6px);
   display: flex;
   gap: 0;
 }
@@ -738,9 +804,9 @@ kbd {
 }
 .book-list .book-card {
   border-bottom: 1px solid var(--line);
-  padding: 12px 0;
-  contain-intrinsic-size: auto 100px;
-  transition: background 0.4s;
+  padding: 8px 0;
+  contain-intrinsic-size: auto 90px;
+  transition: background var(--motion-base) var(--ease-out);
 }
 /* The card that "Mostrar" took the reader to, for a moment. The ring is inside the cover: the
    card clips what is drawn outside it. */
@@ -758,9 +824,9 @@ kbd {
   padding-right: 80px;
 }
 .book-list .book-cover {
-  height: 78px;
-  width: 64px;
-  padding: 7px 10px;
+  height: 72px;
+  width: 58px;
+  padding: 6px 7px;
   flex-shrink: 0;
   border-radius: 4px;
 }
@@ -778,12 +844,14 @@ kbd {
   height: 15px;
   background-size: 100% 7px;
 }
+/* The height of a row is the one of its text: the room above and below it is the card's own. */
 .book-list .book-info {
   flex: 1;
   min-width: 0;
+  padding: 0 1px;
 }
 .book-list .book-info h3 {
-  font-size: 14px;
+  font-size: var(--fs-strong);
   padding: 0;
 }
 .book-list .book-info p {
@@ -792,7 +860,7 @@ kbd {
 .book-list .book-info .book-author {
   margin: 0;
   padding: 0;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .book-list .progress-track {
   max-width: 160px;
@@ -814,7 +882,7 @@ kbd {
   padding: 20px 0;
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--fs-label);
 }
 .library-footer > span {
   display: flex;
@@ -826,7 +894,7 @@ kbd {
   height: 13px;
 }
 .library-footer .text-button {
-  font-size: 10px;
+  font-size: var(--fs-small);
 }
 .empty-state {
   min-height: 350px;
@@ -855,26 +923,26 @@ kbd {
   transform: rotate(6deg);
 }
 .empty-state > .eyebrow {
-  font-size: 8px;
   letter-spacing: 1.4px;
 }
 .empty-state h2 {
-  font-size: 25px;
+  font-size: var(--fs-title);
   margin: 12px 0;
 }
 .empty-state p {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.9;
   color: var(--muted);
 }
-.empty-state > .primary {
+.empty-state > .primary,
+.empty-state > .secondary {
   margin-top: 25px;
 }
 .empty-state > .text-button {
   margin-top: 10px;
 }
 .empty-state > small {
-  font-size: 10px;
+  font-size: var(--fs-label);
   color: var(--muted);
   margin-top: 12px;
 }
@@ -901,8 +969,9 @@ kbd {
 .tag-item:focus-visible {
   outline-offset: -2px;
 }
-/* A card is ticked with Ctrl or Shift + click, or with its box. The box shows when the pointer or
-   the focus is on the card, and on every card as soon as one is ticked. */
+/* A card is ticked with Ctrl or Shift + click, or with its box. The box is always there, dimmed, so
+   that the reader finds it; it is full when the pointer or the focus is on the card, and on every
+   card as soon as one is ticked. */
 .book-card {
   user-select: none;
 }
@@ -912,29 +981,29 @@ kbd {
   top: 8px;
   left: 8px;
   z-index: 2;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   margin: 0;
   padding: 0;
   border: 1.5px solid var(--muted);
   border-radius: 6px;
   background: var(--panel);
   box-shadow: 0 1px 4px #0003;
-  opacity: 0;
+  opacity: 0.6;
   cursor: pointer;
-  transition: opacity 0.12s;
+  transition: opacity var(--motion-fast) var(--ease-out);
 }
 .select-check::after {
   content: '';
   position: absolute;
-  left: 6px;
-  top: 2px;
+  left: 7px;
+  top: 3px;
   width: 5px;
   height: 10px;
   border: solid var(--panel);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) scale(0);
-  transition: transform 0.1s;
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 .select-check:checked {
   background: var(--accent);
@@ -963,11 +1032,7 @@ kbd {
 .book-list .select-check {
   top: 50%;
   left: 6px;
-  margin-top: -11px;
-}
-/* In Removidos the cover opens nothing: the click goes through to the card, which can be ticked. */
-.book-open:disabled {
-  pointer-events: none;
+  margin-top: -12px;
 }
 .book-list .book-card:has([data-restore]) .book-open {
   padding-right: 120px;
@@ -1009,7 +1074,7 @@ kbd {
 .book-list .book-info .book-tags,
 .book-list .book-info .book-found {
   padding: 0;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 /* The bar of the selection sits under the list, in the column of the library, so that it never
    covers a card. The messages go above it while it is there. */
@@ -1029,7 +1094,7 @@ kbd {
   box-shadow: 0 -10px 28px #0004;
 }
 .selection-count {
-  font-size: 13px;
+  font-size: var(--fs-strong);
   font-weight: 600;
   color: var(--accent);
   white-space: nowrap;
@@ -1044,7 +1109,7 @@ kbd {
 .selection-action {
   padding: 7px 11px;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1088,12 +1153,11 @@ kbd {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .trash-bar .secondary {
   padding: 8px 13px;
-  font-size: 12px;
 }
 .trash-bar .secondary svg {
   width: 15px;
@@ -1131,13 +1195,19 @@ dialog .tag-owner {
 }
 .tag-entry .secondary {
   padding: 9px 14px;
-  font-size: 12px;
 }
-dialog .tag-hint {
+dialog :is(.tag-hint, .field-hint) {
   min-height: 20px;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-body);
   color: var(--danger);
+}
+.history-view .field-hint {
+  min-height: 0;
+  margin: 0;
+}
+.history-view .field-hint:not(:empty) {
+  margin: 0 0 10px;
 }
 .tag-chips {
   display: flex;
@@ -1153,7 +1223,7 @@ dialog .tag-hint {
   gap: 2px;
   max-width: 100%;
   padding: 2px 2px 2px 11px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   background: var(--soft);
   border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   border-radius: 999px;
@@ -1165,9 +1235,9 @@ dialog .tag-hint {
   white-space: nowrap;
 }
 .tag-chip button {
-  width: 22px;
-  height: 22px;
-  padding: 5px;
+  width: 24px;
+  height: 24px;
+  padding: 6px;
   border-radius: 50%;
   color: var(--muted);
 }
@@ -1176,7 +1246,7 @@ dialog .tag-hint {
   height: 12px;
 }
 .tag-chips-empty {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .tag-suggestions {
@@ -1187,19 +1257,19 @@ dialog .tag-hint {
 .tag-suggestion {
   padding: 4px 11px;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
 }
 .tag-suggestion small {
-  font-size: 10px;
+  font-size: var(--fs-label);
   color: var(--muted);
 }
 .purge-notes {
   margin: 12px 0 0;
   padding-left: 20px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: var(--muted);
 }
@@ -1232,7 +1302,7 @@ dialog p strong {
   left: 0;
   right: 0;
   z-index: 40;
-  transition: transform 180ms ease;
+  transition: transform var(--motion-base) var(--ease-out);
   box-shadow: var(--shadow);
 }
 .reader-fullscreen .reader-top {
@@ -1247,11 +1317,33 @@ dialog p strong {
 .reader-fullscreen.reader-bottom-visible .reader-footer {
   transform: translateY(0);
 }
+/* The full screen puts the footer away, and the progress with it: a thin line on the bottom edge
+   keeps it in view. It is under the footer, which covers it when the pointer calls the bar. */
+.reading-line {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  height: 3px;
+  background: var(--panel);
+  pointer-events: none;
+}
+.reading-line i {
+  display: block;
+  height: 100%;
+  width: var(--read, 0%);
+  background: var(--accent);
+}
+.reader-fullscreen .reading-line {
+  display: block;
+}
 .reading-quick {
   height: 32px;
   padding: 0 9px;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
 }
 .reading-quick svg {
@@ -1274,7 +1366,7 @@ dialog p strong {
   gap: 10px;
 }
 .reading-control-heading label {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 #popover #quick-close {
@@ -1284,7 +1376,7 @@ dialog p strong {
 }
 .reading-control-value {
   margin: 12px 0 6px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 #quick-value {
@@ -1296,20 +1388,18 @@ dialog p strong {
 }
 #popover #quick-reset {
   margin-top: 10px;
-  font-size: 10px;
+  font-size: var(--fs-small);
 }
 @media (max-width: 1100px) {
   .reading-quick .quick-name {
     display: none;
   }
 }
+/* Only the name goes (above); the value stays, so that the state is not only a colour. */
 @media (max-width: 900px) {
   .reading-quick {
-    width: 28px;
-    padding: 0;
-  }
-  .reading-quick span {
-    display: none;
+    padding: 0 6px;
+    gap: 4px;
   }
 }
 .reader-header {
@@ -1318,7 +1408,7 @@ dialog p strong {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 17px;
+  padding: 0 var(--reader-inset);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -1338,24 +1428,21 @@ dialog p strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .reader-document > span {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: var(--muted);
   margin-top: 4px;
-}
-.reader-header > .text-button {
-  font-size: 10px;
 }
 .reader-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--panel);
-  padding: 8px 20px;
+  padding: 8px var(--reader-inset);
   gap: 15px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--line);
@@ -1374,10 +1461,33 @@ dialog p strong {
   width: 17px;
   height: 17px;
 }
+/* The paper button goes round claro, sépia and escuro: the dot on it is the paper that is on (the
+   colours of the surface around the page, as in the reader). */
+#paper-toggle {
+  position: relative;
+}
+#paper-toggle::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+  background: var(--paper-light);
+}
+:root[data-paper='sepia'] #paper-toggle::after {
+  background: var(--paper-sepia);
+}
+:root[data-paper='dark'] #paper-toggle::after {
+  background: var(--paper-dark);
+}
 #page-number {
   width: 49px;
   height: 28px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   text-align: center;
   padding: 0 3px;
   appearance: textfield;
@@ -1387,13 +1497,13 @@ dialog p strong {
   display: none;
 }
 #page-total {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   white-space: nowrap;
   padding: 0 5px;
 }
 #zoom {
-  font-size: 11px;
+  font-size: var(--fs-small);
   max-width: 155px;
   height: 29px;
   padding: 3px 8px;
@@ -1419,6 +1529,11 @@ dialog p strong {
   outline: none;
   scrollbar-gutter: stable both-edges;
   overscroll-behavior: contain;
+}
+/* It is a stop of Tab and where the arrows act: the keyboard reader sees that it has the focus. */
+#viewer-container:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 #pdf-viewer {
   padding: 24px 20px 32px;
@@ -1451,13 +1566,13 @@ dialog p strong {
   background: rgb(75 137 106 / 0.28);
 }
 :root[data-paper='dark'] #viewer-wrap {
-  background: #171b1b;
+  background: var(--paper-dark);
 }
 :root[data-paper='dark'] .pdfViewer .canvasWrapper {
   filter: invert(0.91) hue-rotate(180deg);
 }
 :root[data-paper='sepia'] #viewer-wrap {
-  background: #d9cfbd;
+  background: var(--paper-sepia);
 }
 :root[data-paper='sepia'] .pdfViewer .canvasWrapper {
   filter: sepia(0.45) brightness(0.97);
@@ -1494,13 +1609,13 @@ dialog p strong {
   box-shadow:
     0 2px 10px #0004,
     var(--shadow);
-  font-size: 12px;
-  animation: jump-pill-in 0.16s ease-out;
+  font-size: var(--fs-body);
+  animation: jump-pill-in var(--motion-base) var(--ease-out);
 }
 .jump-pill[data-side='forward'] {
   --pill-bg: var(--panel);
   --pill-fg: var(--text);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 @keyframes jump-pill-in {
   from {
@@ -1556,17 +1671,17 @@ dialog p strong {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
-  padding: 0 23px;
+  padding: 0 var(--reader-inset);
   background: var(--panel);
   border-top: 1px solid var(--line);
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: var(--muted);
 }
 .reader-footer .text-button {
-  font-size: 10px;
-  padding: 4px;
+  font-size: var(--fs-small);
+  min-height: 28px;
+  padding: 6px 10px;
 }
 .reader-footer .text-button svg {
   height: 13px;
@@ -1595,7 +1710,7 @@ dialog p strong {
 .side-tabs button {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--fs-small);
   padding: 8px 2px;
   border-radius: 5px;
   color: var(--muted);
@@ -1631,11 +1746,29 @@ dialog p strong {
   left: 3px;
   width: 2px;
   background: transparent;
-  transition: background 0.12s;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+/* A short grip in the middle of the edge says, at rest, that the edge can be dragged. */
+#sidebar-resizer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 4px;
+  height: 32px;
+  margin-top: -16px;
+  border-radius: 2px;
+  background: var(--field-line);
+  transition: background var(--motion-fast) var(--ease-out);
 }
 #sidebar-resizer:hover::after,
 #sidebar-resizer.dragging::after {
   background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+#sidebar-resizer:hover::before,
+#sidebar-resizer.dragging::before,
+#sidebar-resizer:focus-visible::before {
+  background: var(--accent);
 }
 #sidebar-resizer:focus-visible {
   outline: 2px solid var(--accent);
@@ -1667,7 +1800,7 @@ dialog p strong {
 .outline-toggle svg {
   width: 14px;
   height: 14px;
-  transition: transform 0.12s;
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 .outline-toggle[aria-expanded='true'] svg {
   transform: rotate(90deg);
@@ -1679,7 +1812,7 @@ dialog p strong {
   justify-content: flex-start;
   white-space: normal;
   overflow-wrap: anywhere;
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.6;
   padding: 8px 8px 8px 4px;
 }
@@ -1702,7 +1835,7 @@ dialog p strong {
   padding: 10px 0 8px;
   scroll-margin: 6px 0;
   border-radius: 0;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
 .thumb-frame {
@@ -1737,7 +1870,7 @@ dialog p strong {
   padding: 35px 25px;
   text-align: center;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.8;
 }
 .side-empty > svg {
@@ -1751,7 +1884,7 @@ dialog p strong {
 }
 .side-empty h3 {
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-body);
   margin-bottom: 9px;
 }
 .bookmark-row {
@@ -1760,7 +1893,7 @@ dialog p strong {
   margin: 3px 12px;
   justify-content: flex-start;
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .bookmark-row svg {
   width: 15px;
@@ -1769,14 +1902,17 @@ dialog p strong {
 .bookmark-row svg:last-child {
   margin-left: auto;
 }
+/* The page being read, as in the outline: weight and a bar as well as colour. */
 .bookmark-row.active {
   background: var(--soft);
   color: var(--accent);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 #side-add-note {
   margin: 3px 15px 12px;
   width: calc(100% - 30px);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .note-card {
   margin: 8px 14px;
@@ -1784,11 +1920,11 @@ dialog p strong {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .note-card .note-page {
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-label);
   padding: 0;
 }
 .note-page svg {
@@ -1806,19 +1942,19 @@ dialog p strong {
   padding-left: 9px;
   border-left: 2px solid var(--accent);
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--fs-label);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .note-card > .text-button {
-  font-size: 10px;
+  font-size: var(--fs-small);
   padding: 4px 0;
 }
 #find-bar {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 22px;
+  padding: 8px var(--reader-inset);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
@@ -1828,7 +1964,7 @@ dialog p strong {
   height: 31px;
 }
 #find-count {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   padding: 0 8px;
   min-width: 100px;
@@ -1846,7 +1982,7 @@ dialog p strong {
   justify-content: center;
   align-items: center;
   gap: 15px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .spinner {
@@ -1885,20 +2021,17 @@ dialog::backdrop {
   gap: 20px;
   margin-bottom: 18px;
 }
-.dialog-heading h2 {
-  font-size: 21px;
-}
 .dialog-heading .eyebrow {
   display: block;
   margin-bottom: 7px;
 }
 .dialog-heading .quiet-label {
-  font-size: 11px;
+  font-size: var(--fs-body);
   margin-left: 5px;
   font-weight: 400;
 }
 dialog p {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: var(--muted);
 }
@@ -1911,7 +2044,6 @@ dialog p {
 }
 .dialog-actions .primary,
 .dialog-actions .secondary {
-  font-size: 12px;
   padding: 9px 17px;
 }
 .dialog-actions .danger {
@@ -1919,7 +2051,7 @@ dialog p {
 }
 .field-label {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-body);
   font-weight: 600;
   margin: 22px 0 8px;
 }
@@ -1927,7 +2059,7 @@ dialog p {
 textarea {
   width: 100%;
   padding: 11px 12px;
-  font-size: 13px;
+  font-size: var(--fs-strong);
 }
 textarea {
   resize: vertical;
@@ -1943,7 +2075,7 @@ textarea {
 }
 .setting-row strong,
 .setting-section > strong {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1955,11 +2087,11 @@ textarea {
 }
 .setting-row p,
 .setting-section > p {
-  font-size: 11px;
+  font-size: var(--fs-body);
   margin-top: 5px;
 }
 .setting-row select {
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .setting-section {
   padding: 20px 0;
@@ -1979,7 +2111,7 @@ textarea {
   gap: 9px;
   border: 1px solid var(--line);
   padding: 15px 10px;
-  font-size: 11px;
+  font-size: var(--fs-body);
   background: var(--bg);
 }
 .paper-option.active {
@@ -1989,27 +2121,31 @@ textarea {
   box-shadow: 0 0 0 1px var(--accent);
 }
 .setting-section small {
-  font-size: 9px;
+  font-size: var(--fs-body);
   color: var(--muted);
   display: block;
   line-height: 1.6;
 }
+/* The box is what the pointer finds, wherever it lands in it: 24px tall, with the native track and
+   thumb centred in it. */
 input[type='range'] {
   width: 100%;
   padding: 0;
+  border: 0;
   accent-color: var(--accent);
-  height: 5px;
-  margin: 8px 0;
+  height: 24px;
+  margin: 2px 0;
+  cursor: pointer;
 }
 .range-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: var(--fs-body);
   color: var(--muted);
   margin-top: 8px;
 }
 #warm-value {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--accent);
 }
@@ -2024,13 +2160,13 @@ input[type='range'] {
 #paper-sample strong {
   display: block;
   font-family: Georgia, serif;
-  font-size: 18px;
+  font-size: var(--fs-subtitle);
   font-weight: 400;
 }
 #paper-sample span {
   display: block;
   font-family: Georgia, serif;
-  font-size: 11px;
+  font-size: var(--fs-body);
   margin-top: 7px;
 }
 #paper-sample[data-paper='dark'] {
@@ -2045,11 +2181,18 @@ input[type='range'] {
   border-top: 1px solid var(--line);
   cursor: pointer;
 }
+/* A switch inside a section has its line above it, and room on both sides of the line. */
+.setting-section .switch-row {
+  padding: 18px 0;
+}
+.mode-description + .switch-row {
+  margin-top: 18px;
+}
 .switch-row input {
   appearance: none;
   width: 34px;
   height: 20px;
-  background: var(--line);
+  background: var(--field-line);
   border: 0;
   border-radius: 20px;
   position: relative;
@@ -2065,7 +2208,7 @@ input[type='range'] {
   background: var(--panel);
   left: 3px;
   top: 3px;
-  transition: transform 0.15s;
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 .switch-row input:checked {
   background: var(--accent);
@@ -2087,7 +2230,7 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .settings-folder svg {
@@ -2095,49 +2238,90 @@ input[type='range'] {
   height: 14px;
 }
 .settings-folder code {
-  font-size: 9px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   overflow-wrap: anywhere;
   color: var(--muted);
 }
 .settings-folder button {
-  font-size: 10px;
+  font-size: var(--fs-body);
   padding: 4px 0;
 }
 .shortcuts {
-  margin: 23px 0;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+  margin: 4px 0 0;
 }
 .shortcuts > div {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 6px 0;
-  font-size: 11px;
+  font-size: var(--fs-body);
 }
-.guide-block {
-  margin-top: 23px;
+.shortcuts dd {
+  margin: 0;
+  flex-shrink: 0;
+  text-align: right;
 }
-.guide-block strong {
-  font-size: 12px;
-  display: block;
-  margin-top: 18px;
+.shortcuts kbd {
+  font-size: var(--fs-body);
 }
-.guide-block p {
-  font-size: 11px;
+/* The guide: a heading for each topic, and a few sentences under it. */
+.guide-view h3 {
+  font-size: var(--fs-strong);
+  margin-top: 22px;
+}
+.guide-view p {
+  font-size: var(--fs-strong);
   margin-top: 6px;
 }
+.guide-view .dialog-heading + p {
+  margin-top: 0;
+}
 .small-copy {
-  font-size: 10px !important;
-  margin-bottom: 25px !important;
+  font-size: var(--fs-body) !important;
+  margin-top: 22px !important;
+}
+/* The title takes the focus when the dialog opens, so that the start of it is what is in view. */
+dialog h2[tabindex='-1']:focus {
+  outline: none;
+}
+/* A long dialog keeps its title, with the way out, and its main action in view: only the middle
+   scrolls. The offsets undo the padding of the dialog, so that nothing shows above or below them. */
+.scroll-dialog > .dialog-heading {
+  position: sticky;
+  top: -28px;
+  z-index: 1;
+  margin-bottom: 8px;
+  padding: 10px 0;
+  background: var(--panel);
+}
+.scroll-dialog > .dialog-actions {
+  position: sticky;
+  bottom: -28px;
+  z-index: 1;
+  margin-top: 18px;
+  padding: 14px 0;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.heading-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The question that takes the place of the buttons of a dialog. */
+.dialog-actions .confirm-text {
+  margin-right: auto;
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 .quote-preview {
   margin: 12px 0;
   padding: 12px 15px;
   background: var(--soft);
   border-left: 3px solid var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   max-height: 160px;
   overflow: auto;
@@ -2146,7 +2330,7 @@ input[type='range'] {
   color: var(--danger);
 }
 .error-list {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.8;
   overflow-wrap: anywhere;
   padding-left: 20px;
@@ -2154,7 +2338,7 @@ input[type='range'] {
 /* The original text of an error, one click away. */
 .error-detail {
   margin: 12px 0;
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .error-detail summary {
@@ -2190,7 +2374,7 @@ input[type='range'] {
   text-align: left;
   width: 100%;
   padding: 10px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   gap: 10px;
 }
 #popover button svg {
@@ -2228,6 +2412,14 @@ input[type='range'] {
 :root[data-theme='dark'] #toast {
   --toast-danger: #a0443d;
 }
+/* Over a page the messages go to the corner, above the footer, and not to the middle of the text. */
+body:has(#reader:not([hidden])) #toast {
+  left: auto;
+  right: 22px;
+  bottom: 44px;
+  transform: none;
+  align-items: flex-end;
+}
 .toast {
   pointer-events: auto;
   display: flex;
@@ -2239,13 +2431,13 @@ input[type='range'] {
   color: var(--panel);
   border-radius: 8px;
   padding: 7px 8px 7px 16px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.45;
   box-shadow: var(--shadow);
-  animation: toast-in 0.18s ease-out;
+  animation: toast-in var(--motion-base) var(--ease-out);
   transition:
-    opacity 0.14s,
-    transform 0.14s;
+    opacity var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
 }
 .toast[data-kind='error'] {
   padding-left: 19px;
@@ -2270,7 +2462,7 @@ input[type='range'] {
   overflow-wrap: anywhere;
 }
 .toast button {
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-weight: 600;
   color: inherit;
   padding: 5px 9px;
@@ -2303,7 +2495,7 @@ input[type='range'] {
   background: color-mix(in srgb, currentColor 10%, transparent);
   border-radius: 6px;
   font:
-    11px/1.45 ui-monospace,
+    var(--fs-small) / 1.45 ui-monospace,
     'Cascadia Mono',
     Consolas,
     monospace;
@@ -2330,15 +2522,12 @@ input[type='range'] {
   margin-bottom: 30px;
 }
 #drop-overlay p {
-  font-size: 13px;
+  font-size: var(--fs-strong);
   margin-top: 15px;
 }
 @media (min-width: 1450px) {
-  .book-cover {
-    height: 250px;
-  }
-  .card-actions {
-    top: 256px;
+  :root {
+    --cover-h: 250px;
   }
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -2358,9 +2547,6 @@ input[type='range'] {
   .library-top {
     padding: 0 28px;
   }
-  .library-top > .eyebrow {
-    font-size: 8px;
-  }
   .library-top .search-input {
     width: 230px;
   }
@@ -2371,12 +2557,12 @@ input[type='range'] {
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     gap: 19px;
   }
-  .book-cover {
-    height: 195px;
-    padding: 17px 20px;
+  :root {
+    --cover-h: 195px;
+    --reader-inset: 10px;
   }
-  .card-actions {
-    top: 201px;
+  .book-cover {
+    padding: 17px 20px;
   }
   #continue {
     gap: 17px;
@@ -2387,14 +2573,14 @@ input[type='range'] {
     height: 65px;
   }
   .continue-info h2 {
-    font-size: 18px;
+    font-size: var(--fs-subtitle);
   }
   #continue > .primary {
-    font-size: 11px;
+    font-size: var(--fs-small);
     padding: 11px;
   }
   .reader-toolbar {
-    padding: 7px 10px;
+    padding: 7px var(--reader-inset);
     gap: 4px;
   }
   .toolbar-group {
@@ -2409,10 +2595,9 @@ input[type='range'] {
   }
   #zoom {
     max-width: 137px;
-    font-size: 10px;
+    font-size: var(--fs-label);
   }
   .reader-header {
-    padding: 0 11px;
     gap: 8px;
   }
 }
@@ -2434,24 +2619,23 @@ input[type='range'] {
   }
   .nav-item {
     padding: 11px 12px;
-    font-size: 11px;
+    font-size: var(--fs-small);
     gap: 8px;
   }
-  .nav-label {
-    font-size: 8px;
-  }
   .local-note {
-    font-size: 10px;
+    font-size: var(--fs-label);
     margin-left: 11px;
   }
   .local-note > span:last-child {
-    font-size: 9px;
+    font-size: var(--fs-label);
   }
   .library-content {
     padding: 27px 23px 0;
   }
+  :root {
+    --library-top-h: 75px;
+  }
   .library-top {
-    height: 75px;
     padding: 0 23px;
     gap: 9px;
   }
@@ -2471,7 +2655,7 @@ input[type='range'] {
     font-size: 29px;
   }
   .heading-row p {
-    font-size: 12px;
+    font-size: var(--fs-body);
   }
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
@@ -2487,11 +2671,11 @@ input[type='range'] {
     min-width: 200px;
   }
   .continue-info h2 {
-    font-size: 18px;
+    font-size: var(--fs-subtitle);
   }
   .library-footer > span {
     max-width: 270px;
-    font-size: 9px;
+    font-size: var(--fs-label);
     line-height: 1.7;
   }
   .reader-toolbar {
@@ -2507,17 +2691,11 @@ input[type='range'] {
   #zoom {
     max-width: 123px;
   }
-  .reader-header #restart {
-    font-size: 9px;
-  }
   #page-number {
     width: 40px;
   }
   #page-total {
     padding: 0 3px;
-  }
-  .reader-footer {
-    padding: 0 15px;
   }
   .search-input kbd {
     display: none;
@@ -2561,7 +2739,7 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .setting-label svg {
@@ -2569,14 +2747,14 @@ input[type='range'] {
   height: 16px;
 }
 #brightness-value {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--accent);
   min-width: 36px;
   text-align: right;
 }
 .brightness-reset {
-  font-size: 10px;
+  font-size: var(--fs-body);
   margin-top: 12px;
   padding: 4px 0;
 }
@@ -2619,7 +2797,7 @@ input[type='range'] {
 }
 .reading-mode-button {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   border: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -2639,8 +2817,24 @@ input[type='range'] {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-body);
   text-align: left;
+}
+/* The day's progress under the text of the goal: a thin gauge, like the ones of the cards. */
+.library-goal .goal-track {
+  display: block;
+  height: 3px;
+  margin-top: 8px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.library-goal .goal-track i {
+  display: block;
+  height: 100%;
+  width: var(--goal, 0%);
+  background: var(--accent);
+  border-radius: 4px;
 }
 .goal-status {
   display: grid;
@@ -2678,7 +2872,7 @@ input[type='range'] {
 }
 .goal-rules {
   margin-top: 18px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 dialog:has(.history-view) {
@@ -2734,11 +2928,11 @@ dialog:has(.history-view) {
   background: var(--soft);
 }
 .history-stats strong {
-  font-size: 22px;
+  font-size: var(--fs-title);
   color: var(--accent);
 }
 .history-stats span {
-  font-size: 11px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .history-week,
@@ -2750,7 +2944,7 @@ dialog:has(.history-view) {
 .history-week {
   margin-bottom: 7px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .history-day {
@@ -2766,7 +2960,7 @@ dialog:has(.history-view) {
   border-radius: 7px;
   text-align: left;
   background: var(--panel);
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .history-day > strong {
   display: flex;
@@ -2776,8 +2970,8 @@ dialog:has(.history-view) {
 }
 .history-day > span,
 .history-day small {
-  font-size: 9px;
-  white-space: nowrap;
+  font-size: var(--fs-label);
+  overflow-wrap: anywhere;
   color: var(--muted);
 }
 .history-day.met {
@@ -2788,7 +2982,7 @@ dialog:has(.history-view) {
   font-weight: 600;
 }
 .history-day.missed {
-  border-bottom: 3px solid #ad8251;
+  border-bottom: 3px solid var(--missed);
 }
 .history-day.ongoing {
   border-bottom: 3px solid var(--accent);
@@ -2798,10 +2992,10 @@ dialog:has(.history-view) {
   outline-offset: 1px;
 }
 .history-day.future {
-  opacity: 0.35;
+  opacity: var(--disabled-opacity);
 }
 .history-today {
-  font-size: 9px;
+  font-size: var(--fs-label);
   font-weight: 400;
   color: var(--accent);
 }
@@ -2817,10 +3011,10 @@ dialog:has(.history-view) {
   gap: 10px;
 }
 .history-detail h3 {
-  font-size: 14px;
+  font-size: var(--fs-strong);
 }
 .history-status {
-  font-size: 11px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .history-status.met {
@@ -2830,7 +3024,7 @@ dialog:has(.history-view) {
 .history-day-totals {
   display: flex;
   gap: 20px;
-  font-size: 14px;
+  font-size: var(--fs-strong);
   margin: 14px 0;
 }
 .history-books {
@@ -2844,7 +3038,7 @@ dialog:has(.history-view) {
   justify-content: space-between;
   padding: 9px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .history-books li > span:first-child {
   min-width: 0;
@@ -2893,10 +3087,15 @@ dialog:has(.history-view) {
   content: '·';
   margin-right: 6px;
 }
-@media (max-width: 1100px) {
-  .reader-header #restart {
-    display: none;
-  }
+/* The footer starts with the progress, so that it does not move with what comes after it. The label
+   that follows is the one that goes first on a narrow window, and the goal and the note stay at the
+   right edge. */
+#reading-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+#reader-goal {
+  margin-left: auto;
 }
 @media (max-width: 900px) {
   .reader-footer #reading-label {
@@ -2904,7 +3103,7 @@ dialog:has(.history-view) {
   }
 }
 .mode-description {
-  font-size: 11px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: var(--muted);
   margin-top: 10px;
@@ -2917,11 +3116,11 @@ dialog:has(.history-view) {
   flex-shrink: 0;
 }
 #pref-spread:disabled {
-  opacity: 0.5;
+  opacity: var(--disabled-opacity);
 }
 @media (max-width: 900px) {
   .reading-mode-button {
-    font-size: 11px;
+    font-size: var(--fs-small);
     padding: 6px 8px;
   }
   .reading-mode-button svg {
@@ -3036,7 +3235,6 @@ dialog:has(.history-view) {
 .note-pin svg {
   width: 11px;
   height: 11px;
-  stroke-width: 2;
 }
 #viewer-container[data-note-hover] .textLayer,
 #viewer-container[data-note-hover] .textLayer :is(span, br) {
@@ -3057,7 +3255,7 @@ dialog:has(.history-view) {
   box-shadow:
     0 4px 16px #0003,
     var(--shadow);
-  animation: jump-pill-in 0.12s ease-out;
+  animation: jump-pill-in var(--motion-fast) var(--ease-out);
 }
 .hl-group {
   display: flex;
@@ -3093,7 +3291,7 @@ dialog:has(.history-view) {
   height: 28px;
   padding: 0 9px;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   font-weight: 600;
 }
 .hl-action svg {
@@ -3122,11 +3320,11 @@ dialog:has(.history-view) {
   justify-content: space-between;
   gap: 8px;
   margin: 0 15px 2px;
-  font-size: 10px;
+  font-size: var(--fs-label);
   color: var(--muted);
 }
 .notes-summary .text-button {
-  font-size: 10px;
+  font-size: var(--fs-small);
   padding: 4px 0;
 }
 .note-card[data-color] {
@@ -3168,7 +3366,7 @@ dialog:has(.history-view) {
 }
 .note-card p.note-kind {
   margin: 8px 0;
-  font-size: 10px;
+  font-size: var(--fs-label);
   font-weight: 600;
   color: var(--muted);
 }
@@ -3194,7 +3392,7 @@ dialog:has(.history-view) {
   align-items: center;
   gap: 7px;
   padding: 6px 12px 6px 7px;
-  font-size: 11px;
+  font-size: var(--fs-body);
   border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;

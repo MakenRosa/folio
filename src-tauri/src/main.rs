@@ -107,6 +107,7 @@ fn main() {
             pdf_path,
             save_cover,
             open_folder,
+            reveal_file,
             export_pdf,
             export_notes
         ])

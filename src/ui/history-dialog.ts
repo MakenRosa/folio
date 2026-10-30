@@ -1,20 +1,24 @@
 import type { Book, Preferences } from '../types';
 import { dayCount, localDay } from '../reading/goals';
 import { firstHistoryDay, historyDay, monthDays, statusLabels } from '../reading/history';
+import { icon } from '../icons';
 import { $, esc, ib } from './dom';
 import { modal } from './overlays';
 
 // `archived` has the ids of the books that were deleted for good: they stay in the list for the days
-// they have, and say so when another book has the same title.
+// they have, and say so when another book has the same title. `back` is there when the history was
+// opened from the goals: it takes the reader back to them.
 export function showHistory(
   prefs: Preferences,
   books: Book[],
   initial?: string,
   archived: ReadonlySet<string> = new Set(),
+  back?: () => void,
 ) {
   let scope = initial || 'global',
     selected = localDay(),
-    month = selected.slice(0, 7);
+    month = selected.slice(0, 7),
+    drawn = false;
   const date = (day: string) => new Date(`${day}T12:00:00`);
   const optionLabel = (b: Book) =>
     archived.has(b.id) && books.some((o) => o.id !== b.id && o.title === b.title)
@@ -24,6 +28,8 @@ export function showHistory(
     `${count} ${unit}${count === 1 ? '' : 's'}`;
   const label = (day: string) =>
     date(day).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const monthName = (value: string) =>
+    date(`${value}-01`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   const render = () => {
     const today = localDay(),
       first = firstHistoryDay(books, prefs, today);
@@ -40,7 +46,7 @@ export function showHistory(
     );
     const detail = historyDay(books, prefs, selected, scope, today);
     const target = detail.goal
-      ? `${detail.shared ? 'Meta geral compartilhada' : 'Meta do livro'} · ${detail.count} / ${detail.goal.target} ${detail.goal.unit === 'pages' ? 'páginas' : 'capítulos'}`
+      ? `${detail.shared ? 'Meta geral compartilhada' : 'Meta do documento'} · ${detail.count} / ${detail.goal.target} ${detail.goal.unit === 'pages' ? 'páginas' : 'capítulos'}`
       : detail.status === 'none'
         ? 'Não havia meta configurada neste dia.'
         : 'A meta deste dia não foi registrada. Os totais disponíveis foram preservados.';
@@ -53,10 +59,12 @@ export function showHistory(
     const next = localDay(
       new Date(date(month + '-01').getFullYear(), date(month + '-01').getMonth() + 1, 1, 12),
     ).slice(0, 7);
-    modal(`<div class="history-view"><div class="dialog-heading"><div><span class="eyebrow">SEU RITMO DE LEITURA</span><h2>Histórico de leitura</h2></div>${ib('history-close', 'Fechar histórico', 'close', 'data-close')}</div>
-      <div class="history-controls"><div><label class="field-label" for="history-scope">Acompanhar</label><select id="history-scope" class="text-field"><option value="global">Todos os livros</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(optionLabel(b))}</option>`).join('')}</select></div>
-      <div class="history-month">${ib('history-prev', 'Mês anterior', 'left', previous < first.slice(0, 7) ? 'disabled' : '')}<label class="sr-only" for="history-month">Mês do histórico</label><input id="history-month" class="text-field" type="month" value="${month}" min="${first.slice(0, 7)}" max="${today.slice(0, 7)}">${ib('history-next', 'Próximo mês', 'right', next > today.slice(0, 7) ? 'disabled' : '')}</div></div>
-      <p class="mode-description">${scope === 'global' ? 'Os totais incluem todos os livros. A meta geral soma apenas os que usavam essa configuração no dia.' : 'Os totais são deste livro. Quando ele usa a meta geral, o resultado considera todos os livros que compartilham essa meta.'}</p>
+    modal(
+      `<div class="history-view"><div class="dialog-heading"><div><span class="eyebrow">SEU RITMO DE LEITURA</span><h2>Histórico de leitura</h2></div><div class="heading-tools">${back ? `<button id="history-back" class="text-button" type="button">${icon('back')} Voltar às metas</button>` : ''}${ib('history-close', 'Fechar histórico', 'close', 'data-close')}</div></div>
+      <div class="history-controls"><div><label class="field-label" for="history-scope">Acompanhar</label><select id="history-scope" class="text-field"><option value="global">Biblioteca inteira</option>${books.map((b) => `<option value="${esc(b.id)}">${esc(optionLabel(b))}</option>`).join('')}</select></div>
+      <div class="history-month">${ib('history-prev', 'Mês anterior', 'left', previous < first.slice(0, 7) ? 'disabled' : '')}<label class="sr-only" for="history-month">Mês do histórico</label><input id="history-month" class="text-field" type="month" value="${month}" min="${first.slice(0, 7)}" max="${today.slice(0, 7)}" aria-describedby="history-hint">${ib('history-next', 'Próximo mês', 'right', next > today.slice(0, 7) ? 'disabled' : '')}</div></div>
+      <p id="history-hint" class="field-hint" role="status"></p>
+      <p class="mode-description">${scope === 'global' ? 'Os totais incluem todos os documentos. A meta geral soma apenas os que usavam essa configuração no dia.' : 'Os totais são deste documento. Quando ele usa a meta geral, o resultado considera todos os documentos que compartilham essa meta.'}</p>
       <div class="history-stats"><div><strong>${summary.pages}</strong><span>páginas no mês</span></div><div><strong>${summary.chapters}</strong><span>capítulos no mês</span></div><div><strong>${summary.met}</strong><span>dias com meta atingida</span></div></div>
       <div class="history-week" aria-hidden="true">${['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => `<span>${d}</span>`).join('')}</div>
       <div class="history-calendar" role="group" aria-label="Dias do mês">${'<span aria-hidden="true"></span>'.repeat((date(days[0]).getDay() + 6) % 7)}${days
@@ -64,12 +72,16 @@ export function showHistory(
           const d = historyDay(books, prefs, day, scope, today),
             future = day > today;
           const state = !d.recorded ? 'Sem registro' : statusLabels[d.status];
-          return `<button class="history-day ${future ? 'future' : d.status}" data-history-day="${day}" ${future ? 'disabled' : ''} aria-pressed="${day === selected}" aria-label="${esc(`${label(day)}: ${future ? 'dia futuro' : `${d.pages} páginas, ${d.chapters} capítulos. ${state}`}`)}"><strong>${Number(day.slice(-2))}${day === today ? '<span class="history-today">hoje</span>' : ''}</strong><span>${future ? '' : d.recorded ? `${d.pages} pág. · ${d.chapters} cap.` : 'Sem registro'}</span><small>${future ? '' : d.status === 'met' ? '✓ Atingida' : d.status === 'missed' ? 'Abaixo' : d.status === 'ongoing' ? 'Em andamento' : d.status === 'none' ? 'Sem meta' : 'Não registrada'}</small></button>`;
+          return `<button class="history-day ${future ? 'future' : d.status}" data-history-day="${day}" ${future ? 'disabled' : ''} aria-pressed="${day === selected}" aria-label="${esc(`${label(day)}: ${future ? 'dia futuro' : `${d.pages} páginas, ${d.chapters} capítulos. ${state}`}`)}"><strong>${Number(day.slice(-2))}${day === today ? '<span class="history-today">hoje</span>' : ''}</strong><span>${future ? '' : d.recorded ? `${d.pages} pág. · ${d.chapters} cap.` : 'Sem registro'}</span><small>${future || !d.recorded ? '' : d.status === 'met' ? '✓ Atingida' : d.status === 'missed' ? 'Abaixo' : d.status === 'ongoing' ? 'Em andamento' : d.status === 'none' ? 'Sem meta' : 'Não registrada'}</small></button>`;
         })
         .join('')}</div>
       <section class="history-detail" aria-live="polite"><div class="history-detail-title"><h3>${esc(label(selected))}</h3><span class="history-status ${detail.status}">${detail.recorded ? statusLabels[detail.status] : 'Sem registro'}</span></div><p>${esc(target)}</p><div class="history-day-totals"><strong>${quantity(detail.pages, 'página')}</strong><strong>${quantity(detail.chapters, 'capítulo')}</strong></div>
       ${contributions.length ? `<ul class="history-books">${contributions.map((b) => `<li><span>${esc(b.title)}</span><span>${dayCount(b, 'pages', selected)} pág. · ${dayCount(b, 'chapters', selected)} cap.</span></li>`).join('')}</ul>` : `<p>${detail.recorded ? 'Nenhuma leitura registrada neste dia.' : 'Ainda não há dados para este dia.'}</p>`}</section>
-      <p class="mode-description">A última meta salva no dia vale para aquele dia. Alterações posteriores não reavaliam dias anteriores. Os totais incluem ajustes manuais. Dias antigos sem registro não são reconstruídos.</p></div>`);
+      <p class="mode-description">A última meta salva no dia vale para aquele dia. Alterações posteriores não reavaliam dias anteriores. Os totais incluem ajustes manuais. Dias antigos sem registro não são reconstruídos.</p></div>`,
+      drawn,
+    );
+    drawn = true;
+    if (back) $('#history-back').onclick = back;
     $<HTMLSelectElement>('#history-scope').value = scope;
     $('#history-scope').onchange = () => {
       scope = $<HTMLSelectElement>('#history-scope').value;
@@ -81,7 +93,12 @@ export function showHistory(
         value < first.slice(0, 7) ||
         value > today.slice(0, 7)
       ) {
+        // Not back to the old month in silence: the field says which months there are.
         $<HTMLInputElement>('#history-month').value = month;
+        $('#history-hint').textContent =
+          first.slice(0, 7) === today.slice(0, 7)
+            ? `Só há registro de ${monthName(today.slice(0, 7))}.`
+            : `Escolha um mês entre ${monthName(first.slice(0, 7))} e ${monthName(today.slice(0, 7))}.`;
         return;
       }
       month = value;

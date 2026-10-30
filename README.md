@@ -22,15 +22,15 @@ tela atravessa a divisão entre duas páginas do PDF.
   para a biblioteca; SHA-256 evita duplicatas de conteúdo. Links simbólicos e
   junções dentro da pasta não são seguidos, e arquivos que não são PDF são ignorados.
 - A importação já entrega a biblioteca pronta: uma fila em segundo plano, um PDF
-  por vez e parada enquanto um livro está aberto, gera a capa e lê o número de
-  páginas e o autor (e o título, se você ainda não renomeou o livro). Os cartões
+  por vez e parada enquanto um documento está aberto, gera a capa e lê o número de
+  páginas e o autor (e o título, se você ainda não renomeou o documento). Os cartões
   se atualizam sozinhos. PDFs com senha ou inválidos ficam como estão. O resumo diz
-  qual livro já existia ("Mostrar") e abre o livro recém-adicionado ("Abrir").
+  qual documento já existia ("Mostrar") e abre o documento recém-adicionado ("Abrir").
 - **Abrir pelo Explorer.** O instalador coloca o Fólio na lista **Abrir com** dos arquivos `.pdf`,
   sem torná-lo o programa padrão: a escolha do Windows (Configurações > Aplicativos padrão) fica
   como estava, e você decide se quer mudar. Um PDF aberto assim, ou mandado ao Fólio já aberto,
   entra pela importação de sempre (cópia para a biblioteca, sem duplicatas) e abre na hora, mesmo
-  sobre outro livro, que tem a posição salva. Com vários arquivos, o primeiro abre e o aviso resume
+  sobre outro documento, que tem a posição salva. Com vários arquivos, o primeiro abre e o aviso resume
   o resto; se uma importação estiver em andamento, eles esperam por ela.
 - A janela lembra o tamanho, a posição e se estava maximizada. A tela cheia não é lembrada, e uma
   janela que não cabe mais nos monitores (outro monitor, resolução menor) volta menor, ao centro.
@@ -46,39 +46,40 @@ tela atravessa a divisão entre duas páginas do PDF.
 - **Seleção múltipla.** Ctrl + clique marca ou desmarca um cartão, Shift + clique marca o intervalo
   até ele, e a caixa que aparece no cartão (ao passar o mouse ou com o foco) faz o mesmo; Ctrl + A
   marca todos os documentos da tela, e Esc limpa a seleção. Um clique simples continua abrindo o
-  livro. Uma barra fixa no pé da biblioteca mostra "N selecionados" e as ações em lote, gravadas de
+  documento. Uma barra fixa no pé da biblioteca mostra "N selecionados" e as ações em lote, gravadas de
   uma só vez: **Favoritar**, **Marcar como concluído**, **Adicionar etiqueta**, **Remover da
   biblioteca** (com **Desfazer** para todos) e **Limpar seleção**. Em Removidos, as ações são
   **Restaurar** e **Excluir definitivamente**. A seleção vale para o que está na tela: trocar de
   filtro a limpa, e uma busca ou um filtro que esconde um cartão o tira da seleção.
 - **Esvaziar Removidos.** O botão no topo de Removidos e **Excluir definitivamente** no menu de cada
-  item apagam, depois de uma confirmação que mostra quantos documentos são e quanto espaço
+  item excluem, depois de uma confirmação que mostra quantos documentos são e quanto espaço
   liberam, as cópias de `pdfs/` e as capas de `covers/`. O catálogo é gravado primeiro, sem os
-  documentos; se um arquivo não puder ser apagado, o documento sai do catálogo mesmo assim e o aviso
+  documentos; se um arquivo não puder ser excluído, o documento sai do catálogo mesmo assim e o aviso
   diz quais arquivos ficaram. O arquivo original, fora da biblioteca, não é afetado, e o histórico
-  de leitura é mantido. Reimportar o mesmo PDF depois cria um livro novo.
-- Busca textual no PDF, seleção, sumário, zoom, rotação, marcadores e notas.
+  de leitura é mantido. Reimportar o mesmo PDF depois cria um documento novo.
+- Busca textual no PDF, seleção, sumário, zoom, rotação, marcas e notas.
 - **Notas e realces no próprio texto.** Ao selecionar um trecho (com o mouse ou pelo teclado), uma
   barra pequena aparece junto ao fim da seleção, sem cobri-la nem sair da janela: **Realçar** em
-  amarelo, verde, azul ou rosa, **Anotar** (abre a nota com a citação e as linhas do trecho) e
+  amarelo, verde, azul ou rosa, **Adicionar nota** (abre a nota com a citação e as linhas do trecho) e
   **Copiar**. Ela some ao desfazer a seleção, ao rolar, ao clicar fora e com Esc. Com um trecho
-  selecionado, **H** realça na última cor usada e **N** anota. O realce é desenhado sobre a página
+  selecionado, **H** realça na última cor usada e **N** adiciona uma nota. O realce é desenhado sobre a página
   em uma camada que não atrapalha a seleção nem os links, acompanha o zoom, a rotação, as duas
   páginas lado a lado, o modo Kindle e a junção de margens, e é legível nos papéis claro, sépia e
-  escuro. Uma nota com texto ganha um pequeno marcador na margem. Clicar num realce (ou no
-  marcador) abre um menu: **Editar nota**, **Mudar cor**, **Copiar texto** e **Excluir realce**, com
+  escuro. Uma nota com texto ganha um pequeno ícone de nota na margem. Clicar num realce (ou no
+  ícone) abre um menu: **Editar nota**, **Mudar cor**, **Copiar texto** e **Excluir realce**, com
   **Desfazer** no aviso. Uma seleção que atravessa páginas vira um realce por página; ao anotar,
   vale o trecho da primeira página. A aba **Notas** da barra lateral tem busca (texto e citação,
   sem diferenciar maiúsculas e acentos), a cor de cada realce ("Realce" quando não há texto) e o menu
   da nota; clicar leva à página e à altura do realce, e isso conta como salto (Alt + ← volta).
-  **Exportar notas** (na aba e no menu do documento) grava um arquivo `.md` com o título, o autor,
+  **Exportar notas…** (na aba e no menu do documento) grava um arquivo `.md` com o título, o autor,
   e as notas por página, cada uma com a citação, o texto e a data.
 - Tela cheia com barras ocultas, reveladas pelo mouse nas bordas ou pelo teclado.
-  Os controles aparecem sobre o PDF sem deslocar a leitura. F11 alterna a tela cheia.
+  Os controles aparecem sobre o PDF sem deslocar a leitura, e uma linha fina na borda inferior
+  mostra o progresso enquanto eles estão ocultos. F11 alterna a tela cheia.
 - Retomada opcional de página, posição e zoom por documento.
 - **Concluir leitura** no topo do leitor, com opção de desfazer, sem perder a posição.
-- **Metas de leitura** diárias em páginas ou capítulos. A meta geral soma os livros
-  que a usam; cada livro pode ter uma meta própria ou ficar sem meta. Acompanhe o
+- **Metas de leitura** diárias em páginas ou capítulos. A meta geral soma os documentos
+  que a usam; cada documento pode ter uma meta própria ou ficar sem meta. Acompanhe o
   progresso na biblioteca ou no rodapé do leitor e ajuste os totais de hoje quando necessário.
 - Interface clara/escura/sistema, papel claro/sépia/escuro, tela quente e brilho
   da leitura de 10% a 100%, combináveis e salvos automaticamente. Brilho e tela quente
@@ -90,14 +91,14 @@ tela atravessa a divisão entre duas páginas do PDF.
   ou por cabeçalhos explícitos. O título aparece junto ao começo do capítulo,
   após a última tela do trecho anterior. Pode ser desativado nas preferências.
 - **Progresso e tempo restante.** O percentual vai de 0% na primeira página a 100%
-  na última, ou em livros concluídos, e é o mesmo no rodapé do leitor (rolagem e
-  Kindle) e na biblioteca. Depois de cinco páginas lidas de um livro, o rodapé e o
+  na última, ou em documentos concluídos, e é o mesmo no rodapé do leitor (rolagem e
+  Kindle) e na biblioteca. Depois de cinco páginas lidas de um documento, o rodapé e o
   cartão Continuar leitura estimam o tempo restante no capítulo, quando há capítulos
-  reconhecidos, e no livro.
+  reconhecidos, e no documento.
 - **Duas páginas lado a lado** na rolagem contínua, para monitores largos. Escolha
   **Duas páginas** ou **Duas páginas, capa separada** (a página 1 fica sozinha) no
   botão ao lado do zoom, na tecla L ou nas preferências; a escolha vale para todos os
-  livros e fica salva. Página anterior e próxima, as setas e os botões avançam por
+  documentos e fica salva. Página anterior e próxima, as setas e os botões avançam por
   par, e "Largura da página" e "Página inteira" consideram o par. O modo Kindle usa
   uma coluna: ao ativá-lo a disposição fica de lado e ela volta quando você retorna à rolagem.
 
@@ -106,7 +107,7 @@ tela atravessa a divisão entre duas páginas do PDF.
   os níveis se recolhem, e por padrão aparecem o primeiro nível e o caminho até a seção
   atual. A aba Páginas mostra miniaturas com o número de cada página, desenhadas só perto
   da área visível, e marca a página atual ou as duas páginas de um par. A barra lembra se
-  estava aberta, a aba e a largura em todos os livros. Arraste a borda dela, ou use as
+  estava aberta, a aba e a largura em todos os documentos. Arraste a borda dela, ou use as
   setas, para mudar a largura (de 220 a 480 px, no máximo 40% da janela).
 - **Voltar depois de um salto.** Ao usar o sumário, um link do PDF, o primeiro resultado da
   busca, uma miniatura, uma marca ou nota, o campo de página, Home e End no Kindle ou **Ler do
@@ -129,7 +130,7 @@ refluxo de texto, OCR, edição de páginas, assinatura digital ou preenchimento
 de formulários. O papel escuro inverte também as imagens. As miniaturas mostram a página
 inteira, também no Kindle com margens unidas, e seguem a rotação e o papel escolhidos.
 O sumário só marca seções cujo destino aponta para uma página do documento; links
-externos ou destinos quebrados continuam na lista, sem marca. Notas, realces e marcadores
+externos ou destinos quebrados continuam na lista, sem marca. Notas, realces e marcas
 ficam no catálogo, sem alterar o PDF. Senhas de PDFs não são armazenadas.
 
 As metas contam páginas do PDF, não telas do Kindle: uma página conta após oito
@@ -142,15 +143,15 @@ de que todo o conteúdo foi lido. Saltos não preenchem páginas intermediárias
 PDFs sem capítulos reconhecíveis permitem registro manual. O dia segue o relógio
 local. O histórico mantém os totais antigos e compacta os IDs de páginas após os
 31 registros mais recentes. A atualização
-não inventa histórico anterior, e concluir um livro não soma suas páginas à meta.
+não inventa histórico anterior, e concluir um documento não soma suas páginas à meta.
 
 O percentual conta páginas do PDF, da primeira (0%) à última (100%), e não depende
 do zoom, da janela ou das telas do Kindle. No Kindle, a última tela pode começar na
 penúltima página: o leitor mostra 100% ao chegar ao fim do documento, mas a
 biblioteca só conhece a página salva e mostra o valor dessa página. O tempo restante
 usa o ritmo medido em segundos por página, só com leitura ativa e os mesmos critérios
-das metas. Pausas longas e saltos são descartados, e o ritmo de cada livro fica nas
-preferências (até 50 livros). É uma estimativa: páginas mais densas ou mais leves
+das metas. Pausas longas e saltos são descartados, e o ritmo de cada documento fica nas
+preferências (até 50 documentos). É uma estimativa: páginas mais densas ou mais leves
 mudam o resultado, e nada é exibido antes de cinco páginas medidas. Com duas páginas
 lado a lado, o tempo em um par é dividido entre as duas páginas.
 
@@ -158,15 +159,15 @@ lado a lado, o tempo em um par é dividido entre as duas páginas.
 
 Abra **Histórico de leitura** na biblioteca ou **Ver histórico** nas metas. O
 calendário mensal mostra páginas e capítulos por dia, metas atingidas, dias
-abaixo da meta e o dia atual em andamento. Filtre por livro e selecione um dia
-para ver os totais e os livros que contribuíram. Leituras de livros sem meta
-também são registradas. Registros de livros removidos continuam disponíveis e, depois de
-**Excluir definitivamente**, os dias de leitura do livro continuam contando no calendário (o livro
+abaixo da meta e o dia atual em andamento. Filtre por documento e selecione um dia
+para ver os totais e os documentos que contribuíram. Leituras de documentos sem meta
+também são registradas. Registros de documentos removidos continuam disponíveis e, depois de
+**Excluir definitivamente**, os dias de leitura do documento continuam contando no calendário (o documento
 aparece no filtro, sem arquivo, e não volta à biblioteca nem a Removidos).
 
 O resultado usa a configuração que valia naquele dia. A última alteração feita
 no próprio dia prevalece, mas mudanças posteriores não reavaliam dias anteriores.
-A meta geral considera a participação histórica de cada livro. Dias com totais
+A meta geral considera a participação histórica de cada documento. Dias com totais
 antigos, mas sem configuração registrada, exibem **Meta não registrada**. O
 aplicativo não reconstrói leituras que nunca foram salvas ou já foram descartadas
 por versões anteriores.

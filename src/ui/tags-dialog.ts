@@ -111,7 +111,7 @@ export function showTags({ books, known, save }: TagsDialog) {
       if (problem) hint.textContent = problem;
       else d.close();
     } catch (e) {
-      fail(e);
+      fail(e, 'Não foi possível salvar as etiquetas.');
     } finally {
       draw();
     }

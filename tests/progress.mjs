@@ -201,10 +201,10 @@ try {
     await page.waitForFunction(() =>
       /capítulo/.test(document.querySelector('#reading-time').textContent),
     );
-    assert.equal(await time().textContent(), '≈ 2 min no capítulo · 8 min no livro');
+    assert.equal(await time().textContent(), '≈ 2 min no capítulo · 8 min no documento');
     assert.equal(await page.locator('#reading-progress').textContent(), '40% · Página 3 de 6');
     await goTo(5);
-    assert.equal(await time().textContent(), '≈ 2 min no capítulo · 4 min no livro');
+    assert.equal(await time().textContent(), '≈ 2 min no capítulo · 4 min no documento');
     await goTo(6);
     assert.equal(await time().isHidden(), true, 'Nothing is left after the last page');
     await goTo(3);
@@ -218,7 +218,7 @@ try {
     await click('#kindle-toggle');
     await settle();
     await goTo(3);
-    assert.match(await time().textContent(), /^≈ 2 min no capítulo · 8 min no livro$/);
+    assert.match(await time().textContent(), /^≈ 2 min no capítulo · 8 min no documento$/);
     await click('#kindle-toggle');
     await settle();
   });
@@ -272,7 +272,7 @@ try {
     assert.equal(measured.pace.samples, 5, 'Page 2 was read for about four seconds');
     assert.ok(measured.pace.seconds > 45 && measured.pace.seconds < 55, measured.pace.seconds);
     assert.equal(await time().isHidden(), false, 'The estimate appears once there is enough data');
-    assert.match(await time().textContent(), /no livro$/);
+    assert.match(await time().textContent(), /no documento$/);
     await click('#next');
     await settle(2000);
     assert.equal((await stored()).pace.samples, 5, 'A page flipped through at once is skimming');

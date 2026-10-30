@@ -7,7 +7,7 @@ export type ErrorText = {
   // The technical text of the error, as it came. Empty when it adds nothing to the sentence.
   detail: string;
 };
-export const GENERIC_ERROR = 'Algo deu errado. Tente de novo.';
+export const GENERIC_ERROR = 'Algo deu errado. Tente novamente.';
 
 // What is known of an error before choosing the sentence. `text` is lower case, for the rules.
 type Facts = {
@@ -96,7 +96,7 @@ const RULES: Rule[] = [
         f,
         /não foi possível ler parte do pdf|alterada ou está incompleta|worker was (destroyed|terminated)|loading aborted|unexpected server response|failed to fetch|networkerror|load failed/,
       ),
-    'A leitura do PDF foi interrompida. Tente abrir de novo.',
+    'A leitura do PDF foi interrompida. Tente abrir novamente.',
   ],
   // The commands of the app (library.rs, commands.rs, reading.rs).
   [(f) => has(f, /selecione um arquivo \.pdf/), 'Só arquivos .pdf podem ser adicionados.'],
@@ -115,7 +115,7 @@ const RULES: Rule[] = [
   [(f) => has(f, /a meta deve estar entre/), 'A meta deve estar entre 1 e 10.000.'],
   [
     (f) => has(f, /data do histórico inválida|informe a data da alteração da meta/),
-    'Não foi possível salvar a meta. Confira a data e tente de novo.',
+    'Não foi possível salvar a meta. Confira a data e tente novamente.',
   ],
   [
     (f) => has(f, /histórico diário excede/),
@@ -128,7 +128,7 @@ const RULES: Rule[] = [
   ],
   [
     (f) => has(f, /poison/),
-    'A biblioteca encontrou um erro interno. Feche o Fólio e abra de novo.',
+    'A biblioteca encontrou um erro interno. Feche o Fólio e abra novamente.',
   ],
   // The system, whatever its language: Windows says "(os error N)" in the system language.
   [
@@ -139,7 +139,7 @@ const RULES: Rule[] = [
     (f) =>
       osIn(f, 32, 33) ||
       has(f, /used by another process|em uso por outro processo|sharing violation/),
-    'O arquivo está em uso por outro programa. Feche-o e tente de novo.',
+    'O arquivo está em uso por outro programa. Feche-o e tente novamente.',
   ],
   [
     (f) =>

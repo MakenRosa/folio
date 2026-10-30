@@ -109,8 +109,7 @@ export class ReaderChrome {
     document.body.classList.remove('reader-top-visible', 'reader-bottom-visible');
     const button = $('#fullscreen');
     button.innerHTML = icon(active ? 'collapse' : 'expand');
-    button.title = active ? 'Sair da tela cheia (F11 ou Esc)' : 'Tela cheia (F11)';
-    button.setAttribute('aria-label', button.title);
+    // The name stays "Tela cheia (F11)"; whether it is on is in `aria-pressed` and in the icon.
     button.setAttribute('aria-pressed', String(active));
     if (active) {
       $('#viewer-container').focus({ preventScroll: true });

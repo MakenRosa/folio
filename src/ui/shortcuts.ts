@@ -1,6 +1,7 @@
 import type { Reader } from '../reader';
 import { $ } from './dom';
-import { closePopover, fail, toast } from './overlays';
+import { closePopover, failing, toast } from './overlays';
+import { FAILED } from './failures';
 export const SPREAD_KINDLE_NOTE = 'Duas páginas só na rolagem. Saia do modo Kindle para usar.';
 type ShortcutActions = {
   isReading: () => boolean;
@@ -61,20 +62,20 @@ export function bindShortcuts(actions: ShortcutActions) {
       void importFiles();
     } else if (e.ctrlKey && e.key.toLowerCase() === 'k') {
       e.preventDefault();
-      if (current) void closeReader();
+      if (current) void closeReader().catch(failing(FAILED.back));
       else $('#library-search').focus();
     } else if (current && e.ctrlKey && e.key.toLowerCase() === 'f') {
       e.preventDefault();
       showFind();
     } else if (current && e.ctrlKey && e.key.toLowerCase() === 'b') {
       e.preventDefault();
-      void toggleBookmark().catch(fail);
+      void toggleBookmark().catch(failing(FAILED.bookmark));
     } else if (current && e.ctrlKey && ['+', '=', '-'].includes(e.key)) {
       e.preventDefault();
       reader?.stepZoom(e.key === '-' ? -1 : 1);
     } else if (current && e.ctrlKey && e.key.toLowerCase() === 'w') {
       e.preventDefault();
-      void closeReader().catch(fail);
+      void closeReader().catch(failing(FAILED.back));
     } else if (
       current &&
       e.altKey &&
@@ -110,7 +111,7 @@ export function bindShortcuts(actions: ShortcutActions) {
       else if (current && actions.dismissSelection()) return;
       else if (!$('#find-bar').hidden) $('#find-close').click();
       else if (!current && actions.clearSelection()) return;
-      else void exitFullscreen().catch(fail);
+      else void exitFullscreen().catch(failing('Não foi possível sair da tela cheia.'));
     } else if (current && !input && !inMenu && !e.ctrlKey && !e.altKey) {
       if (e.metaKey) return;
       const nativeControl = (e.target as HTMLElement).closest('button,a,[role="button"]');
@@ -152,7 +153,13 @@ export function bindShortcuts(actions: ShortcutActions) {
         if (e.key.toLowerCase() === 'n' && !e.repeat) actions.annotateSelection();
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
           e.preventDefault();
-          reader?.turn(e.key === 'ArrowLeft' ? -1 : 1);
+          const direction = e.key === 'ArrowLeft' ? -1 : 1;
+          // With the document wider than the window (a high zoom) the arrows are the way to see
+          // the sides; they turn the page only when there is nothing to scroll to.
+          const view = $('#viewer-container');
+          if (view.scrollWidth - view.clientWidth > 1)
+            view.scrollBy({ left: direction * Math.max(40, view.clientWidth * 0.1) });
+          else reader?.turn(direction);
         }
       }
     }

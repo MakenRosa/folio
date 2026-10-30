@@ -30,8 +30,9 @@ if (process.argv[2] === 'prepare') {
   await page.locator('.goal-adjust summary').click();
   await page.locator('#goal-pages').fill('4');
   await page.locator('#goal-chapters').fill('1');
+  await page.evaluate(() => (document.querySelector('#goal-current').dataset.old = '1'));
   await page.locator('#goal-log-save').click();
-  await page.waitForFunction(() => !document.querySelector('.goal-adjust').open);
+  await page.waitForFunction(() => !document.querySelector('#goal-current').dataset.old);
   await page.locator('#goals-close').click();
   await page.locator('#finish-reading').click();
   await page.waitForFunction(
@@ -67,7 +68,7 @@ if (process.argv[2] === 'prepare') {
   assert.deepEqual(persisted.readingDays, expected.readingDays);
   assert.deepEqual(persisted.goalHistory, expected.goalHistory);
   assert.equal(persisted.finished, true);
-  assert.equal(await page.locator('#finish-reading').textContent(), 'Concluído');
+  assert.equal(await page.locator('#finish-reading').getAttribute('aria-pressed'), 'true');
   assert.match(await page.locator('#reader-goal').textContent(), /4 \/ 15 páginas/);
   assert.equal(actual.mode, 'kindle');
   assert.ok(

@@ -1,6 +1,6 @@
 // The tips that are shown only once. A tip is remembered by name in the preferences, so that it
 // stays quiet after the first time, also after a restart. The names are part of the saved data.
-export const HINTS = ['kindle', 'finish'] as const;
+export const HINTS = ['kindle', 'finish', 'fullscreen'] as const;
 export type HintId = (typeof HINTS)[number];
 
 const known = new Set<string>(HINTS);

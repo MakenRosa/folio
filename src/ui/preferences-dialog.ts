@@ -2,7 +2,8 @@ import type { Preferences } from '../types';
 import { invoke } from '../bridge';
 import { icon } from '../icons';
 import { $, esc, ib } from './dom';
-import { modal, fail } from './overlays';
+import { modal, failing } from './overlays';
+import { FAILED } from './failures';
 export function showPreferences(
   prefs: Preferences,
   actions: {
@@ -13,22 +14,22 @@ export function showPreferences(
 ) {
   const { folder, applyPrefs, setReadingMode } = actions;
   const d =
-    modal(`<div class="dialog-heading"><div><span class="eyebrow">DO SEU JEITO</span><h2>Conforto para ler</h2></div>${ib('close-settings', 'Fechar preferências', 'close', 'data-close')}</div>
- <div class="setting-row"><div><strong>Interface</strong><p>A aparência da biblioteca e dos controles.</p></div><select id="pref-theme"><option value="light">Clara</option><option value="dark">Escura</option><option value="system">Sistema</option></select></div>
+    modal(`<div class="scroll-dialog"><div class="dialog-heading"><div><span class="eyebrow">CONFORTO PARA LER</span><h2>Preferências</h2></div>${ib('close-settings', 'Fechar preferências', 'close', 'data-close')}</div>
+ <div class="setting-row"><div><label class="setting-label" for="pref-theme">Tema do aplicativo</label><p>A aparência da biblioteca e dos controles.</p></div><select id="pref-theme"><option value="light">Claro</option><option value="dark">Escuro</option><option value="system">Seguir o sistema</option></select></div>
  <div class="setting-section"><div class="setting-row"><div><label class="setting-label" for="pref-reading-mode">Forma de leitura</label><p>Rolagem contínua ou uma tela de cada vez.</p></div><select id="pref-reading-mode"><option value="scroll">Rolagem</option><option value="kindle">Kindle</option></select></div><p class="mode-description">No Kindle, as telas acompanham o zoom e podem atravessar páginas do PDF. Use as setas, Espaço ou a roda do mouse. Um pequeno trecho se repete para não cortar linhas. A diagramação do texto é preservada.</p><label id="pref-join-row" class="setting-row switch-row" ${prefs.readingMode !== 'kindle' ? 'hidden' : ''}><div><strong>Unir conteúdo das páginas</strong><p>Reduz as margens vazias no Kindle, sem alterar o PDF.</p></div><input id="pref-join-pages" type="checkbox" role="switch" ${prefs.joinPages ? 'checked' : ''}></label><label id="pref-chapters-row" class="setting-row switch-row" ${prefs.readingMode !== 'kindle' ? 'hidden' : ''}><div><strong>Capítulos em nova tela</strong><p>Separa as páginas de abertura reconhecidas pelo sumário ou pelo cabeçalho.</p></div><input id="pref-chapter-breaks" type="checkbox" role="switch" ${prefs.chapterBreaks ? 'checked' : ''}></label><div id="pref-spread-row" class="setting-row"><div><label class="setting-label" for="pref-spread">Páginas na tela</label><p id="pref-spread-help"></p></div><select id="pref-spread" aria-describedby="pref-spread-help"><option value="none">Página única</option><option value="odd">Duas páginas</option><option value="even">Duas páginas, capa separada</option></select></div></div>
- <div class="setting-section"><strong>Cor das páginas</strong><p>Aplicada à leitura, sem alterar seu PDF.</p><div class="paper-options">${[
+ <div class="setting-section"><strong id="paper-label">Cor das páginas</strong><p>Aplicada à leitura, sem alterar seu PDF.</p><div class="paper-options" role="group" aria-labelledby="paper-label">${[
    ['light', 'sun', 'Clara'],
    ['sepia', 'leaf', 'Sépia'],
    ['dark', 'moon', 'Escura'],
  ]
    .map(
      ([v, i, l]) =>
-       `<button class="paper-option ${v === prefs.paper ? 'active' : ''}" data-paper="${v}">${icon(i)}${l}</button>`,
+       `<button class="paper-option ${v === prefs.paper ? 'active' : ''}" data-paper="${v}" aria-pressed="${v === prefs.paper}">${icon(i)}${l}</button>`,
    )
    .join('')}</div><small>No modo escuro, as cores das imagens também são invertidas.</small></div>
  <div class="setting-section"><div class="setting-row"><div><label class="setting-label" for="brightness-range">${icon('sun')} Brilho da leitura</label><p id="brightness-description">Escurece a área do PDF, mesmo com a página clara.</p></div><output id="brightness-value" for="brightness-range">${prefs.brightness}%</output></div><input id="brightness-range" type="range" min="10" max="100" step="5" value="${prefs.brightness}" aria-describedby="brightness-description" aria-valuetext="${prefs.brightness}%"><div class="range-labels"><span>Mais suave · 10%</span><span>Original · 100%</span></div><button id="brightness-reset" class="text-button brightness-reset">Restaurar brilho original</button></div>
  <div class="setting-section"><div class="setting-row"><div><strong>${icon('warm')} Tela quente</strong><p>Um tom âmbar suave para a leitura noturna.</p></div><output id="warm-value" for="warm-range">${prefs.warm}%</output></div><input id="warm-range" type="range" min="0" max="70" step="5" value="${prefs.warm}" aria-label="Intensidade da tela quente"><div class="range-labels"><span>Desativada</span><span>Mais quente</span></div><div id="paper-sample"><strong>Um pouco de calma.</strong><span>A próxima página pode esperar um segundo.</span></div></div>
- <label class="setting-row switch-row"><div><strong>Continuar de onde parei</strong><p>Retoma a posição e o zoom de cada PDF.</p></div><input id="pref-resume" type="checkbox" role="switch" ${prefs.resume ? 'checked' : ''}></label><div class="settings-folder"><span>${icon('folder')} Biblioteca local</span><code>${esc(folder)}</code><button id="settings-folder" class="text-button">Abrir pasta da biblioteca ${icon('arrow')}</button></div><div class="dialog-actions"><button class="primary" data-close>Pronto</button></div>`);
+ <label class="setting-row switch-row"><div><strong>Continuar de onde parei</strong><p>Retoma a posição e o zoom de cada PDF.</p></div><input id="pref-resume" type="checkbox" role="switch" ${prefs.resume ? 'checked' : ''}></label><div class="settings-folder"><span>${icon('folder')} Biblioteca local</span><code>${esc(folder)}</code><button id="settings-folder" class="text-button">Abrir pasta da biblioteca ${icon('arrow')}</button></div><div class="dialog-actions"><button class="primary" data-close>Pronto</button></div></div>`);
   // The Kindle needs one column. The choice is kept, only unavailable meanwhile.
   const syncSpread = () => {
     const kindle = prefs.readingMode === 'kindle';
@@ -102,10 +103,12 @@ export function showPreferences(
         prefs.paper = b.dataset.paper as Preferences['paper'];
         applyPrefs();
         sample();
-        d.querySelectorAll('[data-paper]').forEach((x) =>
-          x.classList.toggle('active', (x as HTMLElement).dataset.paper === prefs.paper),
-        );
+        d.querySelectorAll<HTMLElement>('.paper-option').forEach((x) => {
+          const on = x.dataset.paper === prefs.paper;
+          x.classList.toggle('active', on);
+          x.setAttribute('aria-pressed', String(on));
+        });
       }),
   );
-  $('#settings-folder').onclick = () => void invoke('open_folder').catch(fail);
+  $('#settings-folder').onclick = () => void invoke('open_folder').catch(failing(FAILED.folder));
 }
