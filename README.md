@@ -89,7 +89,7 @@ O [workflow de Windows](https://github.com/MakenRosa/folio/actions/workflows/ci.
 é executado em pushes para `main` e pull requests. Os resultados documentados
 em `VALIDATION.md` são da execução local; o histórico remoto está no GitHub Actions.
 
-Na [execução de 22/10/2026](https://github.com/MakenRosa/folio/actions/runs/39819295015), o build e `npm run check` passaram. A etapa `npm run test:native` terminou por tempo limite ao aguardar o WebView2 isolado, antes de iniciar os cenários de interface. A causa ainda precisa de diagnóstico no runner; essa execução não comprova aprovação da suíte nativa em CI.
+A porta de conexão do WebView2 é definida nas opções da janela da configuração exclusiva de testes. Isso permite iniciar a automação também em runners que não aplicam a variável de ambiente de argumentos do navegador. A identidade e a biblioteca continuam isoladas em `test-results/native/`; falhas de inicialização incluem o erro emitido pelo processo. Consulte o workflow para o resultado da execução remota.
 
 ## Dados e decisões técnicas
 

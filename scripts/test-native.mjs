@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -14,20 +14,27 @@ await writeFile(
   path.join(runRoot, 'owner.json'),
   JSON.stringify({ purpose: 'folio-artificial-pdf-tests' }),
 );
-const config = path.join(runRoot, 'tauri.test.conf.json');
-await writeFile(
-  config,
-  JSON.stringify({
-    identifier: `com.folio.pdf.test.t${Date.now()}`,
-    app: { appDirectoriesOverride: path.join(runRoot, 'data') },
-  }),
-);
 const server = createServer();
 await new Promise((resolve, reject) =>
   server.once('error', reject).listen(0, '127.0.0.1', resolve),
 );
 const port = server.address().port;
 await new Promise((resolve) => server.close(resolve));
+const { app: appConfig } = JSON.parse(await readFile('src-tauri/tauri.conf.json', 'utf8'));
+const config = path.join(runRoot, 'tauri.test.conf.json');
+await writeFile(
+  config,
+  JSON.stringify({
+    identifier: `com.folio.pdf.test.t${Date.now()}`,
+    app: {
+      appDirectoriesOverride: path.join(runRoot, 'data'),
+      windows: appConfig.windows.map((window) => ({
+        ...window,
+        additionalBrowserArgs: `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=${port}`,
+      })),
+    },
+  }),
+);
 const env = {
   ...process.env,
   FOLIO_CDP_URL: `http://127.0.0.1:${port}`,
@@ -46,12 +53,18 @@ let app;
 async function launch() {
   app = spawn(path.join(root, 'src-tauri/target/debug/lume-pdf.exe'), [], {
     cwd: root,
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
     env: { ...env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}` },
   });
+  let stderr = '';
+  let launchError;
+  app.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
+  app.once('error', (error) => (launchError = error));
   for (let attempt = 0; attempt < 120; attempt++) {
-    if (app.exitCode !== null) throw new Error('Isolated app exited before becoming ready.');
+    if (launchError) throw launchError;
+    if (app.exitCode !== null)
+      throw new Error(`Isolated app exited before becoming ready (${app.exitCode}).\n${stderr}`);
     try {
       const response = await fetch(`${env.FOLIO_CDP_URL}/json/list`);
       if ((await response.json()).some((tab) => tab.url?.includes('tauri.localhost'))) return;
@@ -60,7 +73,7 @@ async function launch() {
     }
     await delay(250);
   }
-  throw new Error('Timed out starting the isolated WebView2.');
+  throw new Error(`Timed out starting the isolated WebView2.\n${stderr}`);
 }
 async function waitClosed() {
   for (let i = 0; i < 80 && app.exitCode === null; i++) await delay(100);
