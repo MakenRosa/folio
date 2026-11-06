@@ -9,8 +9,9 @@
   --panel: #fffefa;
   --sidebar: #efeee8;
   --text: #252f2c;
-  --muted: #737972;
+  --muted: #5f6861;
   --line: #e2e4dc;
+  --field-line: #868d84;
   --accent: #3f6554;
   --accent-hover: #315442;
   --soft: #e6ede5;
@@ -18,6 +19,46 @@
   --reader: #e5e7e3;
   --surface: #ffffff;
   --danger: #a0443d;
+  /* The day of a goal that was missed. */
+  --missed: #ad8251;
+  /* The type scale: a few named sizes, and each role takes one. Nothing that informs is below
+     --fs-label (11px): --fs-micro is for key caps and the like. The supporting text of a dialog
+     and its captions are --fs-body (12px) or more. */
+  --fs-micro: 10px;
+  --fs-label: 11px;
+  --fs-small: 11px;
+  --fs-body: 12px;
+  --fs-strong: 13px;
+  --fs-subtitle: 18px;
+  --fs-title: 21px;
+  --fs-display: 26px;
+  /* Motion: the quick one for a control that answers, the other for what moves into place. */
+  --motion-fast: 0.12s;
+  --motion-base: 0.18s;
+  --ease-out: ease-out;
+  /* What a control that cannot be used looks like, whatever it is. */
+  --disabled-opacity: 0.38;
+  /* The height of a cover in the grid: the buttons of a card hang from it. */
+  --cover-h: 220px;
+  /* The frame of a cover: five quiet tones, one for each hue of a card. The page or the image in
+     the middle is light in any theme; only the frame follows the theme. */
+  --cover-0: #ebece6;
+  --cover-1: #e8e7e0;
+  --cover-2: #e5e9e8;
+  --cover-3: #e8e2dc;
+  --cover-4: #e2e7de;
+  /* The surface around the page for each paper of the reader (the same in both themes). */
+  --paper-sepia: #d9cfbd;
+  --paper-dark: #171b1b;
+  /* The sepia paper itself: the filter that the page of the reader (and its thumbnail) goes through,
+     and the colour that a white page comes out with, which the sample in the preferences shows. They
+     go together: white through the filter is the colour, so change one and work out the other. */
+  --paper-sepia-filter: brightness(0.85) sepia(0.39) brightness(0.98);
+  --paper-sepia-page: #f1e5cf;
+  /* The height of the top of the library, which stays in view while the list scrolls. */
+  --library-top-h: 87px;
+  /* The room at the sides of the bars of the reader, so that their edges line up. */
+  --reader-inset: 20px;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -25,8 +66,9 @@
   --panel: #222925;
   --sidebar: #1d231f;
   --text: #e3e9e2;
-  --muted: #a2afa4;
+  --muted: #aab6ac;
   --line: #354038;
+  --field-line: #6b7a6f;
   --accent: #b5cfb1;
   --accent-hover: #c8dec3;
   --soft: #334637;
@@ -34,6 +76,12 @@
   --reader: #151a17;
   --surface: #29312b;
   --danger: #efa39a;
+  --missed: #c9a06c;
+  --cover-0: #2a332e;
+  --cover-1: #2d332d;
+  --cover-2: #28332f;
+  --cover-3: #302f2b;
+  --cover-4: #29312a;
   color: var(--text);
   background: var(--bg);
 }
@@ -61,12 +109,12 @@ button {
   border: 0;
   border-radius: 7px;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
   white-space: nowrap;
 }
 button:disabled {
-  opacity: 0.38;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 button:hover:not(:disabled) {
@@ -82,12 +130,21 @@ textarea:focus-visible {
 button svg {
   flex-shrink: 0;
 }
+/* The line of an icon is as thick at one size as at another: it is measured on the screen, not in
+   the 24-unit drawing. The big drawings of the empty states and of the drop have a heavier one. */
+svg.icon :is(path, circle, rect) {
+  vector-effect: non-scaling-stroke;
+}
+.empty-illustration svg,
+#drop-overlay svg {
+  stroke-width: 2;
+}
 input,
 select,
 textarea {
   color: var(--text);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: 7px;
 }
 input {
@@ -120,13 +177,13 @@ p {
   margin: 0;
 }
 h1 {
-  font-size: 32px;
+  font-size: var(--fs-display);
   font-weight: 600;
-  letter-spacing: -1px;
+  letter-spacing: -0.6px;
   line-height: 1.2;
 }
 h2 {
-  font-size: 23px;
+  font-size: var(--fs-title);
   font-weight: 600;
   letter-spacing: -0.5px;
 }
@@ -135,7 +192,7 @@ h3 {
 }
 kbd {
   font:
-    10px 'Segoe UI',
+    var(--fs-label) 'Segoe UI',
     sans-serif;
   color: var(--muted);
   padding: 3px 5px;
@@ -148,7 +205,7 @@ kbd {
   color: var(--panel);
   padding: 12px 18px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
   border: 1px solid transparent;
 }
 .primary:hover:not(:disabled) {
@@ -162,7 +219,7 @@ kbd {
   background: var(--panel);
   padding: 10px 14px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .icon-button {
   width: 34px;
@@ -185,37 +242,27 @@ kbd {
 .text-button {
   padding: 7px 4px;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .text-button svg {
   width: 15px;
   height: 15px;
 }
-.eyebrow {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1.6px;
-  color: var(--muted);
-}
 .quiet-label {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
-}
-.status-dot {
-  width: 6px;
-  height: 6px;
-  display: inline-block;
-  background: #728d70;
-  border-radius: 50%;
-  margin-right: 5px;
 }
 .library-shell {
   height: 100vh;
   display: grid;
   grid-template-columns: 228px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 .library-sidebar {
+  grid-row: 1 / span 2;
+  min-height: 0;
+  overflow-y: auto;
   background: var(--sidebar);
   padding: 30px 16px 19px;
   border-right: 1px solid var(--line);
@@ -244,32 +291,69 @@ kbd {
   width: 23px;
   height: 23px;
 }
-.brand > div > span {
-  display: block;
-  font-size: 8px;
-  font-weight: 500;
-  letter-spacing: 2.5px;
-  color: var(--muted);
-  margin-top: 1px;
-}
 .add-button {
+  position: relative;
+  overflow: hidden;
   padding: 11px 12px;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   justify-content: flex-start;
 }
 .add-button svg {
   width: 17px;
 }
+.add-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* While the PDFs are copied the button says how far it is, and stays on, not dimmed like a
+   button that does nothing. The bar is as wide as the part that is done. */
+.add-button[aria-busy='true']:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+.add-button[aria-busy='true'] > svg,
+.add-button[aria-busy='true'] > kbd {
+  display: none;
+}
+.add-bar {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+.add-bar i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transform-origin: left;
+  transform: scaleX(var(--import-progress, 0));
+  transition: transform var(--motion-base) var(--ease-out);
+}
+/* A quiet second way in, under the button: a whole folder, with its subfolders. */
+.add-folder {
+  align-self: flex-start;
+  margin: 4px 0 0 6px;
+  padding: 5px 8px;
+  gap: 6px;
+  font-size: var(--fs-small);
+  font-weight: 500;
+}
+.add-folder svg {
+  width: 14px;
+  height: 14px;
+}
 .add-button kbd {
   margin-left: auto;
-  font-size: 9px;
+  font-size: var(--fs-micro);
   background: #fff1;
   color: inherit;
   border-color: #fff3;
 }
 .nav-label {
-  font-size: 9px;
+  font-size: var(--fs-label);
   letter-spacing: 1.4px;
   font-weight: 600;
   color: var(--muted);
@@ -281,7 +365,7 @@ kbd {
   text-align: left;
   padding: 12px 14px;
   margin: 3px 0;
-  font-size: 12px;
+  font-size: var(--fs-body);
   gap: 11px;
   color: var(--muted);
 }
@@ -293,7 +377,7 @@ kbd {
   flex: 1;
 }
 .nav-item small {
-  font-size: 10px;
+  font-size: var(--fs-label);
   font-weight: 600;
 }
 .nav-item.active {
@@ -304,44 +388,45 @@ kbd {
 .sidebar-bottom {
   margin-top: auto;
 }
+/* A line sets the shortcuts of the app apart from the library, whatever the height of the window. */
+.sidebar-bottom::before {
+  content: '';
+  display: block;
+  height: 1px;
+  margin: 16px 14px 10px;
+  background: var(--line);
+}
 .sidebar-bottom .nav-item {
   padding-top: 9px;
   padding-bottom: 9px;
 }
-.local-note {
-  margin: 20px 14px 22px;
-  padding: 16px 0 18px;
-  border-bottom: 1px solid var(--line);
-  font-size: 11px;
-  color: var(--text);
-}
-.local-note > span:last-child {
-  display: block;
-  font-size: 10px;
-  color: var(--muted);
-  margin: 7px 0 0 11px;
-}
 .library-main {
+  grid-column: 2;
+  grid-row: 1;
   overflow: auto;
   scrollbar-gutter: stable;
+  /* A card that the focus brings into view is not left under the top. */
+  scroll-padding-top: var(--library-top-h);
 }
+/* The search and the theme stay at the top while the list scrolls under them. */
 .library-top {
-  height: 87px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--library-top-h);
   padding: 0 42px;
   display: flex;
   align-items: center;
   gap: 18px;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
-}
-.library-top > .eyebrow {
-  margin-right: auto;
 }
 .search-input {
   display: flex;
   align-items: center;
   gap: 9px;
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: 7px;
   padding: 0 12px;
   color: var(--muted);
@@ -355,134 +440,160 @@ kbd {
   flex: 1;
   height: 100%;
   width: 100%;
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
+/* The ring of any other control (2 px in the accent), drawn around the box and not on the field. */
 .search-input:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--soft);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .search-input svg {
   width: 16px;
   height: 16px;
 }
+/* The search takes the room of the top; the theme stays at the end. */
 .library-top .search-input {
-  width: 280px;
+  flex: 1;
+  max-width: 560px;
+}
+.library-top #theme-toggle {
+  margin-left: auto;
 }
 .search-input kbd {
   white-space: nowrap;
 }
 .library-content {
-  padding: 38px 42px 0;
+  padding: 30px 42px 32px;
   max-width: 1600px;
   margin: auto;
 }
+/* The title with the goal of the day at the end of the same line. */
 .heading-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
+}
+.heading-text {
+  flex: 1;
+  min-width: 0;
+}
+.heading-text h1 {
+  overflow-wrap: anywhere;
 }
 .heading-row p {
   color: var(--muted);
-  font-size: 13px;
-  margin-top: 10px;
+  font-size: var(--fs-strong);
+  margin-top: 6px;
 }
-.heading-row > .quiet-label {
-  align-self: flex-end;
-  margin-bottom: 4px;
-}
+/* "Continuar": one line, as tall as a row of the list. The cover in miniature, the title with where the
+   reading is, the gauge of the document, and the way back in. The whole strip opens the document. */
 #continue {
   display: flex;
   align-items: center;
-  gap: 25px;
+  gap: 16px;
   background: var(--soft);
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: 10px;
-  min-height: 132px;
-  padding: 22px 28px;
-  overflow: hidden;
-  margin-bottom: 32px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-out);
 }
-.continue-art {
-  position: relative;
-  width: 86px;
-  height: 86px;
+#continue:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+#continue .book-cover {
+  width: 44px;
+  height: 60px;
+  padding: 0;
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--panel) 30%, transparent);
-  border-radius: 50%;
+  border-radius: 4px;
 }
-.continue-art > svg {
-  width: 37px;
-  height: 37px;
-  z-index: 1;
-  transform: rotate(-7deg);
+#continue .paper-preview {
+  padding: 8px 5px;
 }
-.orbit {
-  position: absolute;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
-  border-radius: 50%;
-  width: 110px;
-  height: 110px;
-  transform: rotate(25deg) scaleY(0.6);
+#continue .paper-preview > span {
+  font-size: 5px;
+  margin-bottom: 6px;
 }
-.orbit-two {
-  transform: rotate(-40deg) scaleY(0.65);
-  width: 115px;
+#continue .paper-preview > svg {
+  display: none;
+}
+#continue .paper-lines {
+  height: 15px;
+  background-size: 100% 7px;
 }
 .continue-info {
   flex: 1;
   min-width: 0;
 }
 .continue-info h2 {
-  font-size: 21px;
-  margin: 9px 0 8px;
+  font-size: var(--fs-strong);
+  letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.continue-info > span:last-child {
-  font-size: 11px;
+.continue-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-small);
   color: var(--muted);
 }
-.continue-info > .eyebrow {
-  font-size: 8px;
-  color: var(--accent);
-  letter-spacing: 1.3px;
+/* Under the title and the page, so the strip has no gap in the middle. */
+.continue-bar {
+  width: 100%;
+  max-width: 320px;
+  height: 4px;
+  margin-top: 8px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 4px;
+  overflow: hidden;
 }
-.dot-separator {
-  padding: 0 8px;
+.continue-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
 }
 #continue > .primary {
-  font-size: 12px;
   flex-shrink: 0;
+  padding: 9px 16px;
 }
 .collection-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px 14px;
   margin: 0 0 21px;
 }
-.collection-toolbar > span {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 1.3px;
-  color: var(--muted);
-}
+/* The count of the list at the left; the order and the view at the right, even when there is no count. */
 .collection-toolbar > div {
   display: flex;
   align-items: center;
   gap: 16px;
+  margin-left: auto;
+}
+/* The order of the list: a name that is seen, and a field like the others (the line of the fields),
+   as tall as the group of the view next to it. */
+.sort-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+.sort-field label {
+  white-space: nowrap;
 }
 .collection-toolbar select {
-  border: 0;
-  background: none;
-  font-size: 11px;
-  color: var(--muted);
+  height: 35px;
+  padding: 0 28px 0 10px;
+  font-size: var(--fs-small);
 }
 .segmented {
   display: flex;
@@ -526,36 +637,36 @@ kbd {
 .book-open:hover:not(:disabled) {
   background: none;
 }
-.book-open:hover .book-cover {
+button.book-open:hover .book-cover {
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   box-shadow: 0 4px 14px #263d2910;
 }
 .book-cover {
-  height: 220px;
+  height: var(--cover-h);
   border-radius: 8px;
-  background: #ebece6;
+  background: var(--cover-0);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e2e3da;
+  border: 1px solid var(--line);
   overflow: hidden;
   padding: 21px 25px;
   transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
+    border-color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
   position: relative;
 }
 .book-cover[data-hue='1'] {
-  background: #e8e7e0;
+  background: var(--cover-1);
 }
 .book-cover[data-hue='2'] {
-  background: #e5e9e8;
+  background: var(--cover-2);
 }
 .book-cover[data-hue='3'] {
-  background: #e8e2dc;
+  background: var(--cover-3);
 }
 .book-cover[data-hue='4'] {
-  background: #e2e7de;
+  background: var(--cover-4);
 }
 .book-cover img {
   object-fit: contain;
@@ -576,7 +687,7 @@ kbd {
 }
 .paper-preview > span {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 2px;
   margin-bottom: 13px;
@@ -606,23 +717,40 @@ kbd {
   padding: 13px 1px 9px;
 }
 .book-info h3 {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-right: 56px;
 }
+/* In the grid the title is what tells one card from another: it gets two lines before the dots.
+   The list has the whole width of the row, and one line is enough there. */
+.book-grid .book-info h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .book-info p {
-  font-size: 10px;
+  font-size: var(--fs-label);
   color: var(--muted);
   margin: 5px 0 13px;
 }
 .book-info p span {
   padding: 0 4px;
 }
+/* The author, under the title. The room on the right is the one the card's buttons take. */
+.book-info .book-author {
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 56px;
+}
 .book-state {
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: var(--muted);
   height: 25px;
 }
@@ -639,9 +767,6 @@ kbd {
   display: block;
   border-radius: 4px;
 }
-.new-badge {
-  font-size: 9px;
-}
 .finished-badge {
   display: inline-flex;
   align-items: center;
@@ -655,7 +780,7 @@ kbd {
 .card-actions {
   position: absolute;
   right: -3px;
-  top: 226px;
+  top: calc(var(--cover-h) + 6px);
   display: flex;
   gap: 0;
 }
@@ -672,6 +797,11 @@ kbd {
   width: 15px;
   height: 15px;
 }
+/* The card clips what is drawn outside it, and its buttons are where the arrows leave the focus: the
+   ring is drawn inside them. */
+.book-card :is(.book-open, .card-actions button):focus-visible {
+  outline-offset: -3px;
+}
 .book-list {
   display: flex;
   flex-direction: column;
@@ -679,8 +809,18 @@ kbd {
 }
 .book-list .book-card {
   border-bottom: 1px solid var(--line);
-  padding: 12px 0;
-  contain-intrinsic-size: auto 100px;
+  padding: 8px 0;
+  contain-intrinsic-size: auto 90px;
+  transition: background var(--motion-base) var(--ease-out);
+}
+/* The card that "Mostrar" took the reader to, for a moment. The ring is inside the cover: the
+   card clips what is drawn outside it. */
+.book-card.revealed .book-cover {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.book-list .book-card.revealed {
+  background: var(--soft);
 }
 .book-list .book-open {
   display: flex;
@@ -689,9 +829,9 @@ kbd {
   padding-right: 80px;
 }
 .book-list .book-cover {
-  height: 78px;
-  width: 64px;
-  padding: 7px 10px;
+  height: 72px;
+  width: 58px;
+  padding: 6px 7px;
   flex-shrink: 0;
   border-radius: 4px;
 }
@@ -709,16 +849,23 @@ kbd {
   height: 15px;
   background-size: 100% 7px;
 }
+/* The height of a row is the one of its text: the room above and below it is the card's own. */
 .book-list .book-info {
   flex: 1;
   min-width: 0;
+  padding: 0 1px;
 }
 .book-list .book-info h3 {
-  font-size: 14px;
+  font-size: var(--fs-strong);
   padding: 0;
 }
 .book-list .book-info p {
   margin-bottom: 6px;
+}
+.book-list .book-info .book-author {
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-small);
 }
 .book-list .progress-track {
   max-width: 160px;
@@ -730,29 +877,6 @@ kbd {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-}
-.library-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  margin-top: 32px;
-  padding: 20px 0;
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: 10px;
-}
-.library-footer > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.library-footer svg {
-  width: 13px;
-  height: 13px;
-}
-.library-footer .text-button {
-  font-size: 10px;
 }
 .empty-state {
   min-height: 350px;
@@ -780,32 +904,563 @@ kbd {
   height: 38px;
   transform: rotate(6deg);
 }
-.empty-state > .eyebrow {
-  font-size: 8px;
-  letter-spacing: 1.4px;
-}
 .empty-state h2 {
-  font-size: 25px;
-  margin: 12px 0;
+  font-size: var(--fs-title);
+  margin: 0 0 12px;
 }
 .empty-state p {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.9;
   color: var(--muted);
 }
-.empty-state > .primary {
+.empty-state > .primary,
+.empty-state > .secondary {
   margin-top: 25px;
 }
-.empty-state > small {
-  font-size: 10px;
+.empty-state > .text-button {
+  margin-top: 10px;
+}
+/* Tags in the side bar: a list that scrolls by itself, so that the buttons under it stay in reach. */
+.tag-section .nav-label {
+  padding-top: 24px;
+}
+#tag-nav {
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.tag-item {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.tag-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The scrolling list would cut the outline of the focus, so it is drawn inside the button. */
+.tag-item:focus-visible {
+  outline-offset: -2px;
+}
+/* A card is ticked with Ctrl or Shift + click, or with its box. The box is always there, dimmed, so
+   that the reader finds it; it is full when the pointer or the focus is on the card, and on every
+   card as soon as one is ticked. */
+.book-card {
+  user-select: none;
+}
+.select-check {
+  appearance: none;
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--muted);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 1px 4px #0003;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+.select-check::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--panel);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.select-check:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.select-check:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+.book-card:hover .select-check,
+.book-card:focus-within .select-check,
+.selecting .select-check,
+.select-check:checked,
+.select-check:focus-visible {
+  opacity: 1;
+}
+.book-card.selected .book-cover {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.book-list .book-card {
+  padding-left: 34px;
+}
+.book-list .book-card.selected {
+  background: var(--soft);
+}
+.book-list .select-check {
+  top: 50%;
+  left: 6px;
+  margin-top: -12px;
+}
+.book-list .book-card:has([data-restore]) .book-open {
+  padding-right: 120px;
+}
+/* A card of Removidos has a wider pair of buttons: in the grid they go under the card, and the
+   title keeps its whole width. */
+.book-grid .book-card:has([data-restore]) .card-actions {
+  position: static;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+.book-grid .book-card:has([data-restore]) .book-info h3,
+.book-grid .book-card:has([data-restore]) .book-info .book-author,
+.book-grid .book-card:has([data-restore]) .book-info .book-tags {
+  padding-right: 0;
+}
+/* The tags of a card, and where a search found it: one discreet line each. */
+.book-info .book-tags,
+.book-info .book-found {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--accent);
+}
+.book-info .book-tags {
+  padding-right: 56px;
+}
+.book-info .book-found {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.book-found svg {
+  width: 11px;
+  height: 11px;
+}
+.book-list .book-info .book-tags,
+.book-list .book-info .book-found {
+  padding: 0;
+  font-size: var(--fs-small);
+}
+/* The bar of the selection sits under the list, in the column of the library, so that it never
+   covers a card. The messages go above it while it is there. */
+.selection-bar {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 42px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -10px 28px #233c2314;
+}
+:root[data-theme='dark'] .selection-bar {
+  box-shadow: 0 -10px 28px #0004;
+}
+.selection-count {
+  font-size: var(--fs-strong);
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.selection-action {
+  padding: 7px 11px;
+  gap: 7px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.selection-action svg {
+  width: 16px;
+  height: 16px;
+}
+.selection-action.danger {
+  color: var(--danger);
+}
+/* A toggle that is on (all that are selected are favorites, or finished): the name stays and the
+   look says the state, as the star of the card does. */
+.selection-action[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--soft);
+  border-color: var(--accent);
+}
+.selection-action[aria-pressed='true'] svg {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+:root[data-selecting] #toast {
+  bottom: 84px;
+}
+@media (max-width: 1100px) {
+  .selection-bar {
+    padding: 9px 28px;
+  }
+  /* Only the icon, then: the name is the tooltip and the accessible name of the button. */
+  .selection-action span {
+    display: none;
+  }
+  .selection-action {
+    padding: 8px;
+  }
+}
+@media (max-width: 900px) {
+  .selection-bar {
+    padding: 9px 23px;
+  }
+}
+/* The top of Removidos: what is there and the way to empty it. */
+.trash-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: var(--fs-body);
   color: var(--muted);
-  margin-top: 12px;
+}
+.trash-bar .secondary {
+  padding: 8px 13px;
+}
+.trash-bar .secondary svg {
+  width: 15px;
+  height: 15px;
+}
+/* A button that destroys: the red of the interface, with text that reads on it in both themes. */
+.danger-button {
+  background: var(--danger);
+  color: #fff;
+}
+.primary.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 86%, #000);
+}
+:root[data-theme='dark'] .primary.danger-button {
+  color: #2a1311;
+}
+:root[data-theme='dark'] .primary.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 86%, #fff);
+}
+/* The tags of a document, and the question before a document is deleted for good. */
+dialog .tag-owner {
+  margin: -6px 0 10px;
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-entry {
+  display: flex;
+  gap: 8px;
+}
+.tag-entry .text-field {
+  flex: 1;
+}
+.tag-entry .secondary {
+  padding: 9px 14px;
+}
+dialog :is(.tag-hint, .field-hint) {
+  min-height: 20px;
+  margin-top: 6px;
+  font-size: var(--fs-body);
+  color: var(--danger);
+}
+.history-view .field-hint {
+  min-height: 0;
+  margin: 0;
+}
+.history-view .field-hint:not(:empty) {
+  margin: 0 0 10px;
+}
+.tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 2px 2px 2px 11px;
+  font-size: var(--fs-body);
+  background: var(--soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 999px;
+}
+.tag-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag-chip button {
+  width: 24px;
+  height: 24px;
+  padding: 6px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+.tag-chip button svg {
+  width: 12px;
+  height: 12px;
+}
+.tag-chips-empty {
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag-suggestion {
+  padding: 4px 11px;
+  gap: 6px;
+  font-size: var(--fs-body);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.tag-suggestion small {
+  font-size: var(--fs-label);
+  color: var(--muted);
+}
+.purge-notes {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  color: var(--muted);
+}
+.purge-notes li + li {
+  margin-top: 4px;
+}
+dialog p strong {
+  color: var(--text);
+}
+#popover button.danger {
+  color: var(--danger);
+}
+#popover button.danger svg {
+  color: inherit;
 }
 #reader {
+  position: relative;
   height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--reader);
+}
+.reader-top {
+  flex-shrink: 0;
+  z-index: 30;
+}
+.reader-fullscreen .reader-top,
+.reader-fullscreen .reader-footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  transition: transform var(--motion-base) var(--ease-out);
+  box-shadow: var(--shadow);
+}
+.reader-fullscreen .reader-top {
+  top: 0;
+  transform: translateY(-100%);
+}
+.reader-fullscreen .reader-footer {
+  bottom: 0;
+  transform: translateY(100%);
+}
+.reader-fullscreen.reader-top-visible .reader-top,
+.reader-fullscreen.reader-bottom-visible .reader-footer {
+  transform: translateY(0);
+}
+/* The full screen puts the footer away, and the progress with it: a thin line on the bottom edge
+   keeps it in view. It is under the footer, which covers it when the pointer calls the bar. */
+.reading-line {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  height: 3px;
+  background: var(--panel);
+  pointer-events: none;
+}
+.reading-line i {
+  display: block;
+  height: 100%;
+  width: var(--read, 0%);
+  background: var(--accent);
+}
+.reader-fullscreen .reading-line {
+  display: block;
+}
+/* Aparência: the button of the toolbar, with its name beside the icon while the window is wide. A dot
+   on the icon says that the brightness or the warm screen is changed (its name says by how much). */
+.reading-quick {
+  height: 32px;
+  padding: 0 9px;
+  gap: 6px;
+  font-size: var(--fs-small);
+}
+.reading-quick svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.reading-quick[aria-expanded='true'] {
+  background: var(--soft);
+}
+.appearance-icon {
+  position: relative;
+  display: inline-flex;
+}
+#reader-appearance[data-adjusted] .appearance-icon::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 1.5px var(--panel);
+}
+#reader-appearance:hover .appearance-icon::after,
+#reader-appearance[aria-expanded='true'] .appearance-icon::after {
+  box-shadow: 0 0 0 1.5px var(--soft);
+}
+/* Only the name goes; the icon keeps its dot, and the label of the button says the values. */
+@media (max-width: 1100px) {
+  .reading-quick .quick-name {
+    display: none;
+  }
+  .reading-quick {
+    padding: 0;
+    width: 32px;
+  }
+}
+/* The panel of Aparência (role "dialog"): the paper, the two sliders and the way on to the
+   preferences. It is wider than a menu, so that the three papers sit in a row. */
+#popover[data-owner='reader-appearance'] {
+  width: 296px;
+}
+.appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px;
+}
+.appearance-heading,
+.appearance-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.appearance-heading {
+  justify-content: space-between;
+}
+.appearance-heading strong,
+.appearance-row label {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.appearance-row label {
+  flex: 1;
+}
+.appearance-row output {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.appearance-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+.quick-papers {
+  display: flex;
+  gap: 6px;
+}
+#popover .quick-paper {
+  flex: 1;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+#popover .quick-paper:hover:not(:disabled) {
+  background: var(--soft);
+}
+#popover .quick-paper.active {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+#popover .quick-paper svg {
+  width: 15px;
+  height: 15px;
+}
+#popover .quick-paper.active svg {
+  color: inherit;
+}
+#popover #quick-close {
+  width: 28px;
+  height: 28px;
+  padding: 5px;
+}
+#popover .appearance .text-button {
+  width: auto;
+  padding: 4px 6px;
+  font-size: var(--fs-small);
+}
+#popover #quick-more {
+  align-self: flex-start;
+  padding-left: 0;
+}
+#popover #quick-more svg {
+  width: 13px;
+  height: 13px;
+  color: inherit;
+}
+/* The panel scrolls, so the outline of a control would be cut at its edge: it stays inside the room
+   that the panel leaves around the controls. */
+.appearance :is(button, input):focus-visible {
+  outline-offset: 2px;
+}
+.appearance input[type='range'] {
+  width: 100%;
 }
 .reader-header {
   height: 57px;
@@ -813,7 +1468,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 17px;
+  padding: 0 var(--reader-inset);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -833,24 +1488,21 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .reader-document > span {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: var(--muted);
   margin-top: 4px;
-}
-.reader-header > .text-button {
-  font-size: 10px;
 }
 .reader-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--panel);
-  padding: 8px 20px;
+  padding: 8px var(--reader-inset);
   gap: 15px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--line);
@@ -872,7 +1524,7 @@ kbd {
 #page-number {
   width: 49px;
   height: 28px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   text-align: center;
   padding: 0 3px;
   appearance: textfield;
@@ -882,13 +1534,13 @@ kbd {
   display: none;
 }
 #page-total {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   white-space: nowrap;
   padding: 0 5px;
 }
 #zoom {
-  font-size: 11px;
+  font-size: var(--fs-small);
   max-width: 155px;
   height: 29px;
   padding: 3px 8px;
@@ -915,6 +1567,11 @@ kbd {
   scrollbar-gutter: stable both-edges;
   overscroll-behavior: contain;
 }
+/* It is a stop of Tab and where the arrows act: the keyboard reader sees that it has the focus. */
+#viewer-container:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 #pdf-viewer {
   padding: 24px 20px 32px;
   min-height: 100%;
@@ -924,6 +1581,17 @@ kbd {
   border: 0 !important;
   box-shadow: 0 2px 9px #0002;
   overflow: visible !important;
+}
+/* Two pages side by side: PDF.js groups each pair in a .spread. "Page width" leaves
+   40px around the pair; the pair's own margins and the narrower padding fit in it. */
+#viewer-container[data-spread] #pdf-viewer {
+  padding-inline: 10px;
+}
+.pdfViewer .spread {
+  margin-inline: 0;
+}
+.pdfViewer .spread .page {
+  margin: 0 4px 20px !important;
 }
 .pdfViewer .canvasWrapper {
   overflow: hidden;
@@ -935,16 +1603,16 @@ kbd {
   background: rgb(75 137 106 / 0.28);
 }
 :root[data-paper='dark'] #viewer-wrap {
-  background: #171b1b;
+  background: var(--paper-dark);
 }
 :root[data-paper='dark'] .pdfViewer .canvasWrapper {
   filter: invert(0.91) hue-rotate(180deg);
 }
 :root[data-paper='sepia'] #viewer-wrap {
-  background: #d9cfbd;
+  background: var(--paper-sepia);
 }
 :root[data-paper='sepia'] .pdfViewer .canvasWrapper {
-  filter: sepia(0.45) brightness(0.97);
+  filter: var(--paper-sepia-filter);
 }
 #warm-overlay {
   pointer-events: none;
@@ -955,50 +1623,136 @@ kbd {
   z-index: 5;
   opacity: 0;
 }
+/* The way back after a jump floats over the reading surface, above the brightness and warm
+   layers, so that it never moves the PDF. The colours are the message's, inverted to the page
+   (dark on the light theme, light on the dark one), with an edge that keeps it apart from a
+   page of the same colour: the dark paper, or the sepia one. The way forward is quieter. */
+.jump-pill {
+  --pill-bg: var(--text);
+  --pill-fg: var(--panel);
+  position: absolute;
+  z-index: 8;
+  right: 22px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 44px);
+  padding: 3px;
+  color: var(--pill-fg);
+  background: var(--pill-bg);
+  border: 1px solid color-mix(in srgb, var(--pill-fg) 40%, transparent);
+  border-radius: 999px;
+  box-shadow:
+    0 2px 10px #0004,
+    var(--shadow);
+  font-size: var(--fs-body);
+  animation: jump-pill-in var(--motion-base) var(--ease-out);
+}
+.jump-pill[data-side='forward'] {
+  --pill-bg: var(--panel);
+  --pill-fg: var(--text);
+  font-size: var(--fs-small);
+}
+@keyframes jump-pill-in {
+  from {
+    opacity: 0;
+  }
+}
+.jump-pill button {
+  min-width: 0;
+  height: 28px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
+  border-radius: 999px;
+}
+.jump-pill button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.jump-pill button:focus-visible {
+  outline-color: currentColor;
+  outline-offset: 1px;
+}
+.jump-pill svg {
+  width: 15px;
+  height: 15px;
+}
+.jump-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jump-pill .jump-dismiss {
+  width: 28px;
+  padding: 0;
+  opacity: 0.75;
+}
+.jump-pill .jump-dismiss:hover:not(:disabled),
+.jump-pill .jump-dismiss:focus-visible {
+  opacity: 1;
+}
+.jump-pill .jump-dismiss svg {
+  width: 13px;
+  height: 13px;
+}
+/* In the full screen the bottom bar comes over the reading surface when the pointer reaches the
+   edge: the pill stays above the strip that calls it, so that the two never fight for the pointer. */
+.reader-fullscreen .jump-pill {
+  bottom: 52px;
+}
 .reader-footer {
   height: 31px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
-  padding: 0 23px;
+  padding: 0 var(--reader-inset);
   background: var(--panel);
   border-top: 1px solid var(--line);
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: var(--muted);
 }
 .reader-footer .text-button {
-  font-size: 10px;
-  padding: 4px;
+  font-size: var(--fs-small);
+  min-height: 28px;
+  padding: 6px 10px;
 }
 .reader-footer .text-button svg {
   height: 13px;
 }
+/* The width is the user's, from the preferences (--sidebar-width). The window caps it at
+   40%, so that the PDF keeps most of the screen even at the smallest window. The bar
+   itself does not scroll: its list does, and the tabs and the drag handle stay put. */
 #reader-sidebar {
-  width: 260px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--sidebar-width, 260px), 40vw);
   flex-shrink: 0;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  overflow: auto;
 }
 .side-tabs {
   display: flex;
   align-items: center;
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  flex-shrink: 0;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
-  padding: 10px 9px;
-  gap: 3px;
+  padding: 10px 6px;
+  gap: 2px;
 }
 .side-tabs button {
   flex: 1;
-  font-size: 11px;
-  padding: 8px 9px;
+  min-width: 0;
+  font-size: var(--fs-small);
+  padding: 8px 2px;
   border-radius: 5px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .side-tabs .active {
   color: var(--accent);
@@ -1006,22 +1760,168 @@ kbd {
   font-weight: 600;
 }
 #sidebar-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   padding: 12px 0;
 }
+#sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  z-index: 12;
+  cursor: col-resize;
+  touch-action: none;
+}
+#sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+/* A short grip in the middle of the edge says, at rest, that the edge can be dragged. */
+#sidebar-resizer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 4px;
+  height: 32px;
+  margin-top: -16px;
+  border-radius: 2px;
+  background: var(--field-line);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+#sidebar-resizer:hover::after,
+#sidebar-resizer.dragging::after {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+#sidebar-resizer:hover::before,
+#sidebar-resizer.dragging::before,
+#sidebar-resizer:focus-visible::before {
+  background: var(--accent);
+}
+#sidebar-resizer:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+#sidebar-resizer:focus-visible::after {
+  background: var(--accent);
+}
+.outline-tree,
+.outline-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.outline-line {
+  display: flex;
+  align-items: stretch;
+  padding-right: 8px;
+}
+.outline-toggle,
+.outline-spacer {
+  flex: none;
+  width: 24px;
+}
+.outline-toggle {
+  padding: 0;
+  color: var(--muted);
+}
+.outline-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.outline-toggle[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
 .outline-item {
+  flex: 1;
+  min-width: 0;
   text-align: left;
   justify-content: flex-start;
   white-space: normal;
-  width: 100%;
-  font-size: 11px;
+  overflow-wrap: anywhere;
+  font-size: var(--fs-body);
   line-height: 1.6;
-  padding: 9px 15px;
+  padding: 8px 8px 8px 4px;
+}
+/* The section being read: weight and a bar as well as color, for both themes. */
+.outline-item[aria-current='true'] {
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+/* An item that points nowhere in this document looks unavailable and has no hover. The keyboard still
+   reaches it, and pressing it says why it does nothing. */
+.outline-item[aria-disabled='true'] {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+.outline-item[aria-disabled='true']:hover {
+  background: none;
+}
+.thumb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+}
+.thumb {
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 0 8px;
+  scroll-margin: 6px 0;
+  border-radius: 0;
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+/* The list scrolls and the thumbnail takes its whole width: a ring outside it would be cut at the
+   sides, so it is drawn inside the button. */
+.thumb:focus-visible {
+  outline-offset: -2px;
+}
+.thumb-frame {
+  display: block;
+  width: 130px;
+  background: var(--soft);
+  box-shadow: 0 1px 5px #0003;
+  overflow: hidden;
+}
+.thumb-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+:root[data-paper='dark'] .thumb-frame canvas {
+  filter: invert(0.91) hue-rotate(180deg);
+}
+:root[data-paper='sepia'] .thumb-frame canvas {
+  filter: var(--paper-sepia-filter);
+}
+.thumb.current {
+  background: var(--soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.thumb.current .thumb-frame {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
 }
 .side-empty {
   padding: 35px 25px;
   text-align: center;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.8;
 }
 .side-empty > svg {
@@ -1029,18 +1929,42 @@ kbd {
   height: 25px;
   margin: 10px;
 }
+.side-empty .spinner {
+  display: inline-block;
+  margin: 10px;
+}
 .side-empty h3 {
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-body);
   margin-bottom: 9px;
+}
+.bookmark-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 3px 12px;
 }
 .bookmark-row {
   display: flex;
-  width: calc(100% - 24px);
-  margin: 3px 12px;
+  flex: 1;
+  min-width: 0;
   justify-content: flex-start;
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--fs-body);
+}
+/* The button that takes a mark off the list: quiet at rest, and the colour of a danger on hover. */
+.bookmark-item .bookmark-remove {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  color: var(--muted);
+}
+.bookmark-item .bookmark-remove svg {
+  width: 16px;
+  height: 16px;
+}
+.bookmark-item .bookmark-remove:hover:not(:disabled) {
+  color: var(--danger);
 }
 .bookmark-row svg {
   width: 15px;
@@ -1049,14 +1973,17 @@ kbd {
 .bookmark-row svg:last-child {
   margin-left: auto;
 }
+/* The page being read, as in the outline: weight and a bar as well as colour. */
 .bookmark-row.active {
   background: var(--soft);
   color: var(--accent);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 #side-add-note {
   margin: 3px 15px 12px;
   width: calc(100% - 30px);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .note-card {
   margin: 8px 14px;
@@ -1064,11 +1991,11 @@ kbd {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 .note-card .note-page {
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-label);
   padding: 0;
 }
 .note-page svg {
@@ -1076,6 +2003,7 @@ kbd {
   height: 12px;
 }
 .note-card p {
+  font-size: var(--fs-strong);
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1083,22 +2011,22 @@ kbd {
 }
 .note-card blockquote {
   margin: 10px 0;
-  padding-left: 9px;
+  padding-left: 5px;
   border-left: 2px solid var(--accent);
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
 .note-card > .text-button {
-  font-size: 10px;
+  font-size: var(--fs-small);
   padding: 4px 0;
 }
 #find-bar {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 22px;
+  padding: 8px var(--reader-inset);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
@@ -1108,7 +2036,7 @@ kbd {
   height: 31px;
 }
 #find-count {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: var(--muted);
   padding: 0 8px;
   min-width: 100px;
@@ -1126,7 +2054,7 @@ kbd {
   justify-content: center;
   align-items: center;
   gap: 15px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--muted);
 }
 .spinner {
@@ -1141,33 +2069,6 @@ kbd {
   to {
     transform: rotate(360deg);
   }
-}
-.focus-mode .reader-header,
-.focus-mode .reader-toolbar,
-.focus-mode .reader-footer,
-.focus-mode #reader-sidebar,
-.focus-mode #find-bar {
-  display: none !important;
-}
-.floating-button {
-  position: absolute;
-  right: 22px;
-  top: 16px;
-  z-index: 20;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  padding: 9px 12px;
-  font-size: 11px;
-  opacity: 0.3;
-}
-.floating-button:hover,
-.floating-button:focus {
-  opacity: 1;
-}
-.floating-button svg {
-  width: 15px;
-  height: 15px;
 }
 dialog {
   border: 1px solid var(--line);
@@ -1192,20 +2093,13 @@ dialog::backdrop {
   gap: 20px;
   margin-bottom: 18px;
 }
-.dialog-heading h2 {
-  font-size: 21px;
-}
-.dialog-heading .eyebrow {
-  display: block;
-  margin-bottom: 7px;
-}
 .dialog-heading .quiet-label {
-  font-size: 11px;
+  font-size: var(--fs-body);
   margin-left: 5px;
   font-weight: 400;
 }
 dialog p {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: var(--muted);
 }
@@ -1218,7 +2112,6 @@ dialog p {
 }
 .dialog-actions .primary,
 .dialog-actions .secondary {
-  font-size: 12px;
   padding: 9px 17px;
 }
 .dialog-actions .danger {
@@ -1226,7 +2119,7 @@ dialog p {
 }
 .field-label {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-body);
   font-weight: 600;
   margin: 22px 0 8px;
 }
@@ -1234,7 +2127,7 @@ dialog p {
 textarea {
   width: 100%;
   padding: 11px 12px;
-  font-size: 13px;
+  font-size: var(--fs-strong);
 }
 textarea {
   resize: vertical;
@@ -1250,7 +2143,7 @@ textarea {
 }
 .setting-row strong,
 .setting-section > strong {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1262,11 +2155,11 @@ textarea {
 }
 .setting-row p,
 .setting-section > p {
-  font-size: 11px;
+  font-size: var(--fs-body);
   margin-top: 5px;
 }
 .setting-row select {
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .setting-section {
   padding: 20px 0;
@@ -1286,7 +2179,7 @@ textarea {
   gap: 9px;
   border: 1px solid var(--line);
   padding: 15px 10px;
-  font-size: 11px;
+  font-size: var(--fs-body);
   background: var(--bg);
 }
 .paper-option.active {
@@ -1296,27 +2189,31 @@ textarea {
   box-shadow: 0 0 0 1px var(--accent);
 }
 .setting-section small {
-  font-size: 9px;
+  font-size: var(--fs-body);
   color: var(--muted);
   display: block;
   line-height: 1.6;
 }
+/* The box is what the pointer finds, wherever it lands in it: 24px tall, with the native track and
+   thumb centred in it. */
 input[type='range'] {
   width: 100%;
   padding: 0;
+  border: 0;
   accent-color: var(--accent);
-  height: 5px;
-  margin: 8px 0;
+  height: 24px;
+  margin: 2px 0;
+  cursor: pointer;
 }
 .range-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: var(--fs-body);
   color: var(--muted);
   margin-top: 8px;
 }
 #warm-value {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--accent);
 }
@@ -1328,35 +2225,33 @@ input[type='range'] {
   background: #fffefa;
   color: #30382c;
 }
-#paper-sample strong {
-  display: block;
-  font-family: Georgia, serif;
-  font-size: 18px;
-  font-weight: 400;
-}
 #paper-sample span {
   display: block;
   font-family: Georgia, serif;
-  font-size: 11px;
-  margin-top: 7px;
+  font-size: var(--fs-strong);
+  line-height: 1.6;
 }
 #paper-sample[data-paper='dark'] {
   background: #1e2423;
   color: #e5e4df;
 }
 #paper-sample[data-paper='sepia'] {
-  background: #eee2c9;
-  color: #554835;
+  background: var(--paper-sepia-page);
+  color: #4a3d2b;
 }
 .switch-row {
   border-top: 1px solid var(--line);
   cursor: pointer;
 }
+/* A switch inside a section has its line above it, and room on both sides of the line. */
+.setting-section .switch-row {
+  padding: 18px 0;
+}
 .switch-row input {
   appearance: none;
   width: 34px;
   height: 20px;
-  background: var(--line);
+  background: var(--field-line);
   border: 0;
   border-radius: 20px;
   position: relative;
@@ -1372,7 +2267,7 @@ input[type='range'] {
   background: var(--panel);
   left: 3px;
   top: 3px;
-  transition: transform 0.15s;
+  transition: transform var(--motion-fast) var(--ease-out);
 }
 .switch-row input:checked {
   background: var(--accent);
@@ -1394,7 +2289,7 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .settings-folder svg {
@@ -1402,49 +2297,245 @@ input[type='range'] {
   height: 14px;
 }
 .settings-folder code {
-  font-size: 9px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   overflow-wrap: anywhere;
   color: var(--muted);
 }
 .settings-folder button {
-  font-size: 10px;
+  font-size: var(--fs-body);
   padding: 4px 0;
 }
-.shortcuts {
-  margin: 23px 0;
+/* The preferences: the sections run down the left (across the top up to 800 px) and the one that is
+   open beside them. The dialog has one height, so that it does not change size from a section to
+   the next; only the open section scrolls, and "Pronto" stays in view. */
+dialog:has(.prefs-view) {
+  width: 720px;
+  height: min(640px, calc(100vh - 60px));
+  overflow: hidden;
+}
+dialog:has(.prefs-view) > #dialog-content,
+.prefs-view {
+  height: 100%;
+}
+.prefs-view {
+  display: flex;
+  flex-direction: column;
+}
+.prefs-view > .dialog-heading {
+  flex-shrink: 0;
+  margin-bottom: 14px;
+}
+.prefs-view > .dialog-actions {
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding-top: 14px;
   border-top: 1px solid var(--line);
-  padding-top: 12px;
+}
+.prefs-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 24px;
+}
+.prefs-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 164px;
+  gap: 2px;
+  padding-right: 16px;
+  border-right: 1px solid var(--line);
+}
+.prefs-tab {
+  justify-content: flex-start;
+  padding: 9px 12px;
+  font-size: var(--fs-strong);
+  color: var(--muted);
+}
+/* The open tab is told by colour, weight and a bar, so that colour is not all there is to it. */
+.prefs-tab.active {
+  color: var(--accent);
+  background: var(--soft);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.prefs-tab:focus-visible {
+  outline-offset: -2px;
+}
+.prefs-panels {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 6px 8px 6px 6px;
+}
+/* Each block of a section has its line above it; the first has none, and the last has no room below. */
+.prefs-panel > .setting-section,
+.prefs-panel > .switch-row {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+}
+.prefs-panel > :is(.setting-section, .switch-row):first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.prefs-panel > :is(.setting-section, .switch-row):last-child {
+  padding-bottom: 0;
+}
+.prefs-panel .setting-section > .setting-row {
+  padding-bottom: 10px;
+}
+.prefs-panel .setting-section > .setting-row:last-child {
+  padding-bottom: 0;
+}
+.prefs-panel .paper-options {
+  margin: 12px 0 8px;
+}
+.prefs-panel .paper-option {
+  flex-direction: row;
+  gap: 8px;
+  padding: 10px;
+}
+.prefs-keys {
+  margin: 0 0 6px;
+}
+.prefs-keys > div {
+  padding: 4px 0;
+}
+#prefs-shortcuts {
+  padding: 4px 0;
+}
+/* What only the Kindle uses: a group with a name of its own. In the scroll mode it is switched off,
+   and the note says when it is available. */
+.prefs-group {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.prefs-group legend {
+  padding: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.prefs-group .mode-description {
+  margin-top: 5px;
+}
+.prefs-group .switch-row {
+  padding: 14px 0 0;
+  border-top: 0;
+}
+.prefs-group .mode-description + .switch-row {
+  margin-top: 4px;
+}
+.prefs-group .switch-row + .switch-row {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.prefs-group:disabled .switch-row,
+.prefs-group:disabled .switch-row input {
+  cursor: default;
+}
+.prefs-group:disabled .switch-row {
+  opacity: var(--disabled-opacity);
+}
+@media (max-width: 800px) {
+  .prefs-body {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .prefs-tabs {
+    flex: none;
+    flex-direction: row;
+    padding: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .prefs-tab {
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+    border-radius: 7px 7px 0 0;
+  }
+  .prefs-tab.active {
+    box-shadow: inset 0 -3px 0 var(--accent);
+  }
+}
+.shortcuts {
+  margin: 4px 0 0;
 }
 .shortcuts > div {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 6px 0;
-  font-size: 11px;
+  font-size: var(--fs-body);
 }
-.guide-block {
-  margin-top: 23px;
+.shortcuts dd {
+  margin: 0;
+  flex-shrink: 0;
+  text-align: right;
 }
-.guide-block strong {
-  font-size: 12px;
-  display: block;
-  margin-top: 18px;
+.shortcuts kbd {
+  font-size: var(--fs-body);
 }
-.guide-block p {
-  font-size: 11px;
+/* The guide: a heading for each topic, and a few sentences under it. */
+.guide-view h3 {
+  font-size: var(--fs-strong);
+  margin-top: 22px;
+}
+.guide-view p {
+  font-size: var(--fs-strong);
+  margin-top: 6px;
+}
+.guide-view .dialog-heading + h3 {
   margin-top: 6px;
 }
 .small-copy {
-  font-size: 10px !important;
-  margin-bottom: 25px !important;
+  font-size: var(--fs-body) !important;
+  margin-top: 22px !important;
+}
+/* The title takes the focus when the dialog opens, so that the start of it is what is in view. */
+dialog h2[tabindex='-1']:focus {
+  outline: none;
+}
+/* A long dialog keeps its title, with the way out, and its main action in view: only the middle
+   scrolls. The offsets undo the padding of the dialog, so that nothing shows above or below them. */
+.scroll-dialog > .dialog-heading {
+  position: sticky;
+  top: -28px;
+  z-index: 1;
+  margin-bottom: 8px;
+  padding: 10px 0;
+  background: var(--panel);
+}
+.scroll-dialog > .dialog-actions {
+  position: sticky;
+  bottom: -28px;
+  z-index: 1;
+  margin-top: 18px;
+  padding: 14px 0;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.heading-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The question that takes the place of the buttons of a dialog. */
+.dialog-actions .confirm-text {
+  margin-right: auto;
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 .quote-preview {
   margin: 12px 0;
   padding: 12px 15px;
   background: var(--soft);
   border-left: 3px solid var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   max-height: 160px;
   overflow: auto;
@@ -1453,20 +2544,42 @@ input[type='range'] {
   color: var(--danger);
 }
 .error-list {
-  font-size: 12px;
+  font-size: var(--fs-body);
   line-height: 1.8;
   overflow-wrap: anywhere;
   padding-left: 20px;
 }
+/* The original text of an error, one click away. */
+.error-detail {
+  margin: 12px 0;
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+.error-detail summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.error-detail p {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 #popover {
   position: fixed;
-  z-index: 50;
+  /* Above the toasts: a menu the reader has just opened must not hide behind a notice. */
+  z-index: 110;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 6px;
   box-shadow: var(--shadow);
   width: 248px;
+  /* Placed by popover(): inside the window, under the button or above it. These limits are
+     only the last resort, and the inline height is what scrolls it when nothing else fits. */
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 #popover button {
   display: flex;
@@ -1475,7 +2588,7 @@ input[type='range'] {
   text-align: left;
   width: 100%;
   padding: 10px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   gap: 10px;
 }
 #popover button svg {
@@ -1483,40 +2596,148 @@ input[type='range'] {
   height: 16px;
   color: var(--muted);
 }
+/* The outline of the page would be cut by the scrolling panel, so the item marks itself inside. */
+#popover [role='menuitem']:focus-visible {
+  background: var(--soft);
+  outline-offset: -2px;
+}
+/* The key of an action, at the end of its line. */
+#popover button kbd {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+}
 #popover hr {
   border: 0;
   border-top: 1px solid var(--line);
   margin: 5px 3px;
 }
+/* While a dialog is open the container is a child of it (placeToasts), because the top layer of a
+   modal dialog is above any z-index and leaves the rest of the page inert. It keeps `position: fixed`:
+   the dialog must not get a transform, a filter or `contain`, which would make it the box that this
+   one is placed in. */
 #toast {
   position: fixed;
   z-index: 100;
   bottom: 22px;
   left: 50%;
   transform: translateX(-50%);
+  /* The messages pile up, the newest nearest the edge. The gaps between them let the clicks through. */
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100vw - 50px);
+  pointer-events: none;
+  /* The red of an error, on the dark message of the light theme and on the light one of the dark. */
+  --toast-danger: #f2a7a0;
+}
+:root[data-theme='dark'] #toast {
+  --toast-danger: #a0443d;
+}
+/* Over a page the messages go to the corner, above the footer, and not to the middle of the text. */
+body:has(#reader:not([hidden])) #toast {
+  left: auto;
+  right: 22px;
+  bottom: 44px;
+  transform: none;
+  align-items: flex-end;
+}
+/* Inside a dialog they go to its top edge (--toast-top, set by placeToasts), and not to the foot of
+   the window, which is where the buttons of the dialog are. Both selectors, because the one for the
+   reader above is the more specific. */
+#dialog > #toast,
+body:has(#reader:not([hidden])) #dialog > #toast {
+  top: var(--toast-top, 22px);
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  align-items: center;
+  max-width: min(480px, calc(100vw - 50px));
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  max-width: 100%;
   background: var(--text);
   color: var(--panel);
   border-radius: 8px;
-  padding: 13px 18px;
-  font-size: 12px;
+  padding: 7px 8px 7px 16px;
+  font-size: var(--fs-body);
+  line-height: 1.45;
   box-shadow: var(--shadow);
-  max-width: calc(100vw - 50px);
+  animation: toast-in var(--motion-base) var(--ease-out);
+  transition:
+    opacity var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
 }
-#toast span {
+.toast[data-kind='error'] {
+  padding-left: 19px;
+  box-shadow:
+    inset 3px 0 0 var(--toast-danger),
+    var(--shadow);
+}
+.toast.leaving {
+  opacity: 0;
+  transform: translateY(6px);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.toast-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 0;
   overflow-wrap: anywhere;
 }
-#toast button {
-  font-size: 11px;
+.toast button {
+  font-size: var(--fs-small);
   font-weight: 600;
   color: inherit;
-  padding: 5px 8px;
-  border: 1px solid #ffffff30;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
 }
-#toast button:hover {
-  background: #ffffff20;
+.toast button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+/* The accent of the page is too faint on the dark message. */
+.toast button:focus-visible {
+  outline-color: currentColor;
+  outline-offset: 2px;
+}
+.toast .toast-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-color: transparent;
+}
+.toast .toast-close svg {
+  width: 14px;
+  height: 14px;
+}
+.toast-detail {
+  flex: 1 0 100%;
+  max-height: 5.8em;
+  margin: 0 8px 5px 0;
+  padding: 7px 9px;
+  overflow: auto;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 6px;
+  font:
+    var(--fs-small) / 1.45 ui-monospace,
+    'Cascadia Mono',
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 #drop-overlay {
   position: fixed;
@@ -1537,15 +2758,12 @@ input[type='range'] {
   margin-bottom: 30px;
 }
 #drop-overlay p {
-  font-size: 13px;
+  font-size: var(--fs-strong);
   margin-top: 15px;
 }
 @media (min-width: 1450px) {
-  .book-cover {
-    height: 250px;
-  }
-  .card-actions {
-    top: 256px;
+  :root {
+    --cover-h: 250px;
   }
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -1560,16 +2778,10 @@ input[type='range'] {
     padding-right: 11px;
   }
   .library-content {
-    padding: 29px 28px 0;
+    padding: 26px 28px 28px;
   }
   .library-top {
     padding: 0 28px;
-  }
-  .library-top > .eyebrow {
-    font-size: 8px;
-  }
-  .library-top .search-input {
-    width: 230px;
   }
   .add-button kbd {
     display: none;
@@ -1578,30 +2790,23 @@ input[type='range'] {
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
     gap: 19px;
   }
+  :root {
+    --cover-h: 195px;
+    --reader-inset: 10px;
+  }
   .book-cover {
-    height: 195px;
     padding: 17px 20px;
   }
-  .card-actions {
-    top: 201px;
-  }
   #continue {
-    gap: 17px;
-    padding: 21px;
-  }
-  .continue-art {
-    width: 65px;
-    height: 65px;
-  }
-  .continue-info h2 {
-    font-size: 18px;
+    gap: 14px;
+    padding: 10px 14px;
   }
   #continue > .primary {
-    font-size: 11px;
-    padding: 11px;
+    font-size: var(--fs-small);
+    padding: 8px 12px;
   }
   .reader-toolbar {
-    padding: 7px 10px;
+    padding: 7px var(--reader-inset);
     gap: 4px;
   }
   .toolbar-group {
@@ -1611,19 +2816,18 @@ input[type='range'] {
     width: 29px;
     padding: 6px;
   }
+  .toolbar-group .reading-quick {
+    width: 29px;
+  }
   .toolbar-group .header-divider {
     margin: 0 2px;
   }
   #zoom {
     max-width: 137px;
-    font-size: 10px;
+    font-size: var(--fs-label);
   }
   .reader-header {
-    padding: 0 11px;
     gap: 8px;
-  }
-  #reader-sidebar {
-    width: 235px;
   }
 }
 @media (max-width: 900px) {
@@ -1644,71 +2848,31 @@ input[type='range'] {
   }
   .nav-item {
     padding: 11px 12px;
-    font-size: 11px;
+    font-size: var(--fs-small);
     gap: 8px;
   }
-  .nav-label {
-    font-size: 8px;
-  }
-  .local-note {
-    font-size: 10px;
-    margin-left: 11px;
-  }
-  .local-note > span:last-child {
-    font-size: 9px;
-  }
   .library-content {
-    padding: 27px 23px 0;
+    padding: 24px 23px 24px;
+  }
+  :root {
+    --library-top-h: 75px;
   }
   .library-top {
-    height: 75px;
     padding: 0 23px;
     gap: 9px;
   }
-  .library-top > .eyebrow {
-    display: none;
-  }
-  .library-top .search-input {
-    width: 100%;
-  }
-  .heading-row {
-    align-items: flex-start;
-  }
-  .heading-row > .quiet-label {
-    display: none;
-  }
-  h1 {
-    font-size: 29px;
-  }
   .heading-row p {
-    font-size: 12px;
+    font-size: var(--fs-body);
   }
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
-  }
-  .continue-art {
-    display: none;
-  }
-  #continue {
-    flex-wrap: wrap;
-    gap: 17px;
-  }
-  .continue-info {
-    min-width: 200px;
-  }
-  .continue-info h2 {
-    font-size: 18px;
-  }
-  .library-footer > span {
-    max-width: 270px;
-    font-size: 9px;
-    line-height: 1.7;
   }
   .reader-toolbar {
     gap: 0;
     padding: 7px;
   }
-  .toolbar-group .icon-button {
+  .toolbar-group .icon-button,
+  .toolbar-group .reading-quick {
     width: 28px;
   }
   .toolbar-group .header-divider {
@@ -1717,23 +2881,11 @@ input[type='range'] {
   #zoom {
     max-width: 123px;
   }
-  .reader-toolbar #fullscreen {
-    display: none;
-  }
-  .reader-header #restart {
-    font-size: 9px;
-  }
   #page-number {
     width: 40px;
   }
   #page-total {
     padding: 0 3px;
-  }
-  #reader-sidebar {
-    width: 220px;
-  }
-  .reader-footer {
-    padding: 0 15px;
   }
   .search-input kbd {
     display: none;
@@ -1744,7 +2896,9 @@ input[type='range'] {
     transition: none !important;
     scroll-behavior: auto !important;
   }
-  .spinner {
+  .spinner,
+  .toast,
+  .jump-pill {
     animation: none;
   }
 }
@@ -1775,7 +2929,7 @@ input[type='range'] {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .setting-label svg {
@@ -1783,14 +2937,14 @@ input[type='range'] {
   height: 16px;
 }
 #brightness-value {
-  font-size: 12px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--accent);
   min-width: 36px;
   text-align: right;
 }
 .brightness-reset {
-  font-size: 10px;
+  font-size: var(--fs-body);
   margin-top: 12px;
   padding: 4px 0;
 }
@@ -1825,7 +2979,7 @@ input[type='range'] {
 }
 #viewer-container[data-reading-mode='kindle'] #pdf-viewer {
   padding-top: 0;
-  padding-bottom: 0;
+  padding-bottom: var(--chapter-end-padding, 0px);
 }
 #viewer-container[data-reading-mode='kindle'] .page {
   margin-bottom: 0 !important;
@@ -1833,7 +2987,7 @@ input[type='range'] {
 }
 .reading-mode-button {
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: var(--fs-body);
   border: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -1846,18 +3000,713 @@ input[type='range'] {
   background: var(--soft);
   border-color: var(--accent);
 }
+/* The Kindle button of the toolbar is as tall as the buttons around it. */
+.toolbar-group .reading-mode-button {
+  height: 32px;
+}
+/* The goal of the day sits at the end of the line of the title. */
+.library-goal {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent);
+  font-size: var(--fs-body);
+  text-align: left;
+}
+.library-goal > span:first-child {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The day's progress under the text of the goal: a thin gauge, like the ones of the cards. */
+.library-goal .goal-track {
+  display: block;
+  height: 3px;
+  margin-top: 6px;
+  background: var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.library-goal .goal-track i {
+  display: block;
+  height: 100%;
+  width: var(--goal, 0%);
+  background: var(--accent);
+  border-radius: 4px;
+}
+/* The goals dialog has two parts, each in a box of its own with its choice, its numbers, the day's
+   progress and its own "Salvar": the general goal and, from a document, the one of that document. */
+.goal-rule {
+  margin-bottom: 4px;
+}
+.goal-part {
+  min-inline-size: 0;
+  margin: 16px 0 0;
+  padding: 2px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.goal-part legend {
+  padding: 0 6px;
+  font-size: var(--fs-strong);
+  font-weight: 600;
+}
+.goal-part .field-label {
+  margin: 14px 0 6px;
+}
+.goal-doc-name {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goal-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+/* The progress of the day sits at the left of the button, so that each part is short. */
+.goal-foot {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 16px;
+}
+.goal-foot .primary {
+  flex: none;
+  margin-left: auto;
+  padding: 9px 17px;
+}
+.goal-status {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.goal-status:empty {
+  display: none;
+}
+.goal-today {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+.goal-today strong {
+  color: var(--accent);
+  font-weight: 600;
+  text-align: right;
+}
+.goal-status progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+.goal-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.goal-fields > div {
+  min-width: 0;
+}
+.goal-fields .text-field,
+#goal-log-book {
+  max-width: 100%;
+  width: 100%;
+}
+/* The two folded parts at the end, each under a line of its own. */
+.goal-adjust,
+.goal-rules {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 16px;
+}
+.goal-rules {
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+dialog:has(.history-view) {
+  width: 720px;
+}
+.history-view .field-label {
+  margin-top: 12px;
+}
+.history-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0;
+}
+.history-controls {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+.history-controls > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.history-controls select {
+  width: 100%;
+  max-width: 100%;
+}
+.history-view .dialog-heading {
+  position: sticky;
+  top: -28px;
+  background: var(--panel);
+  padding: 10px 0;
+  z-index: 1;
+  margin-bottom: 8px;
+}
+.history-month input {
+  width: 210px;
+  text-align: center;
+}
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.history-stats > div {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border-radius: 9px;
+  background: var(--soft);
+}
+.history-stats strong {
+  font-size: var(--fs-title);
+  color: var(--accent);
+}
+.history-stats span {
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+.history-week,
+.history-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+.history-week {
+  margin-bottom: 7px;
+  text-align: center;
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+.history-day {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 8px 5px;
+  min-height: 62px;
+  align-items: stretch;
+  justify-content: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  text-align: left;
+  background: var(--panel);
+  font-size: var(--fs-body);
+}
+.history-day > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
+}
+.history-day > span,
+.history-day small {
+  font-size: var(--fs-label);
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.history-day.met {
+  background: var(--soft);
+}
+.history-day.met small {
+  color: var(--accent);
+  font-weight: 600;
+}
+.history-day.missed {
+  border-bottom: 3px solid var(--missed);
+}
+.history-day.ongoing {
+  border-bottom: 3px solid var(--accent);
+}
+.history-day[aria-pressed='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.history-day.future {
+  opacity: var(--disabled-opacity);
+}
+/* The focus walks the days with the arrows, and the selected day has its own ring: the one of the
+   focus is wider and further out, so that the two are told apart when they are on the same day. */
+.history-day:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.history-today {
+  font-size: var(--fs-label);
+  font-weight: 400;
+  color: var(--accent);
+}
+.history-detail {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 18px;
+}
+.history-detail-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.history-detail h3 {
+  font-size: var(--fs-strong);
+}
+.history-status {
+  font-size: var(--fs-body);
+  color: var(--muted);
+}
+.history-status.met {
+  color: var(--accent);
+  font-weight: 600;
+}
+.history-day-totals {
+  display: flex;
+  gap: 20px;
+  font-size: var(--fs-strong);
+  margin: 14px 0;
+}
+.history-books {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.history-books li {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-body);
+}
+.history-books li > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.history-books li > span:last-child {
+  white-space: nowrap;
+  color: var(--muted);
+}
+.goal-rules summary,
+.goal-adjust summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.goal-adjust .secondary {
+  margin-top: 16px;
+}
+#reader-goal {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 40%;
+  color: var(--accent);
+}
+.reader-footer > .text-button {
+  flex-shrink: 0;
+}
+.reading-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+#reading-progress {
+  flex: none;
+  white-space: nowrap;
+}
+/* The estimate yields first, so it never pushes the goal or the note button. */
+#reading-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#reading-time::before {
+  content: '·';
+  margin-right: 6px;
+}
+/* The footer starts with the progress, so that it does not move with what comes after it; the goal
+   and the note stay at the right edge. */
+#reader-goal {
+  margin-left: auto;
+}
 .mode-description {
-  font-size: 11px;
+  font-size: var(--fs-body);
   line-height: 1.7;
   color: var(--muted);
   margin-top: 10px;
 }
+#pref-spread-row select {
+  flex-shrink: 0;
+}
+#pref-spread:disabled {
+  opacity: var(--disabled-opacity);
+}
 @media (max-width: 900px) {
   .reading-mode-button {
-    font-size: 11px;
+    font-size: var(--fs-small);
     padding: 6px 8px;
   }
   .reading-mode-button svg {
     display: none;
+  }
+}
+
+/* Highlights and notes in the text. The four colours: a solid one for swatches and menus, one that
+   is multiplied over the light and the sepia paper (the text stays as dark as it was), and one
+   for the dark paper, which is the page with its colours inverted: there a multiplied colour would
+   turn black, so the mark is a translucent light over it. */
+:root {
+  --hl-yellow: #ffe45c;
+  --hl-green: #9fe5ae;
+  --hl-blue: #9bcdfd;
+  --hl-pink: #ffadcb;
+  --hl-yellow-night: rgb(255 214 10 / 0.34);
+  --hl-green-night: rgb(76 217 100 / 0.3);
+  --hl-blue-night: rgb(80 170 255 / 0.36);
+  --hl-pink-night: rgb(255 105 160 / 0.36);
+}
+[data-color='yellow'] {
+  --sw: var(--hl-yellow);
+  --mark-night: var(--hl-yellow-night);
+  --pin: #f2c200;
+}
+[data-color='green'] {
+  --sw: var(--hl-green);
+  --mark-night: var(--hl-green-night);
+  --pin: #3fae63;
+}
+[data-color='blue'] {
+  --sw: var(--hl-blue);
+  --mark-night: var(--hl-blue-night);
+  --pin: #3a8fe0;
+}
+[data-color='pink'] {
+  --sw: var(--hl-pink);
+  --mark-night: var(--hl-pink-night);
+  --pin: #e0568f;
+}
+/* One layer for each page, inside the page of PDF.js and above its text. It ignores the pointer, so
+   that the text can be selected and the links followed; only the marks of notes are buttons. The
+   layer itself makes no stacking context: the blend of the marks needs the page behind them. */
+.note-layer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.note-marks {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: multiply;
+}
+.note-mark {
+  position: absolute;
+  border-radius: 2px;
+  background: var(--sw);
+}
+:root[data-paper='dark'] .note-marks {
+  mix-blend-mode: normal;
+}
+:root[data-paper='dark'] .note-mark {
+  background: var(--mark-night);
+}
+/* The highlight that a jump arrived at, for a moment. */
+.note-mark[data-flash] {
+  outline: 2px solid #2f7bd9;
+  outline-offset: 1px;
+  animation: note-flash 1.8s ease-out forwards;
+}
+@keyframes note-flash {
+  60% {
+    outline-color: #2f7bd9;
+  }
+  to {
+    outline-color: transparent;
+  }
+}
+.note-pins {
+  position: absolute;
+  inset: 0;
+}
+/* The mark of a note with text: in the right margin, at the height of the first line. */
+.note-pin {
+  position: absolute;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: #1b1b1b;
+  background: var(--pin);
+  border: 1px solid #fff9;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px #0004;
+  transform: translateY(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.note-pin:hover:not(:disabled) {
+  background: var(--pin);
+  transform: translateY(-50%) scale(1.14);
+}
+.note-pin:focus-visible {
+  outline: 2px solid #2f7bd9;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #fffc;
+}
+.note-pin svg {
+  width: 11px;
+  height: 11px;
+}
+#viewer-container[data-note-hover] .textLayer,
+#viewer-container[data-note-hover] .textLayer :is(span, br) {
+  cursor: pointer;
+}
+/* The bar near the end of a selection. */
+.highlight-bar {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  max-width: calc(100vw - 16px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 16px #0003,
+    var(--shadow);
+  animation: jump-pill-in var(--motion-fast) var(--ease-out);
+}
+.hl-group {
+  display: flex;
+  gap: 1px;
+}
+.hl-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+.hl-swatch > span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+}
+/* The colour that the shortcut uses, and the colour of the highlight in its menu. */
+.hl-swatch[data-last] > span,
+.hl-swatch[data-current] > span {
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 3.5px var(--text);
+}
+.hl-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--line);
+}
+.hl-action {
+  height: 28px;
+  padding: 0 9px;
+  gap: 6px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.hl-action svg {
+  width: 15px;
+  height: 15px;
+}
+#popover .menu-colors {
+  display: flex;
+  gap: 6px;
+  padding: 4px 8px;
+}
+#popover .menu-colors .hl-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  justify-content: center;
+}
+/* The notes of the side bar. */
+.notes-search {
+  margin: 0 15px 8px;
+  height: 32px;
+}
+.notes-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 15px 2px;
+  font-size: var(--fs-label);
+  color: var(--muted);
+}
+.notes-summary .text-button {
+  font-size: var(--fs-small);
+  padding: 4px 0;
+}
+.note-card[data-color] {
+  border-left: 3px solid var(--sw);
+}
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: -4px -6px 0 0;
+}
+.note-head .note-page {
+  padding: 4px 0;
+  gap: 6px;
+  text-align: left;
+}
+.note-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+}
+.note-head .note-more {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+}
+.note-head .note-more svg {
+  width: 15px;
+  height: 15px;
+}
+/* The quote is a button that takes to the passage: it reads as the text it holds, and answers to
+   the pointer and the keyboard like the "Página N" link beside it. Six lines at most. */
+.note-card .note-quote {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  text-align: left;
+  white-space: normal;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  border-radius: 4px;
+}
+.note-card .note-quote:hover:not(:disabled) {
+  color: var(--text);
+}
+.note-card .note-quote:focus-visible {
+  outline-offset: 1px;
+}
+.note-quote > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+.note-card p.note-kind {
+  margin: 8px 0;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--muted);
+}
+/* The choice of colour in the dialog of a note that is a highlight. */
+.color-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.color-field legend {
+  display: block;
+  padding: 0;
+}
+.color-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* The same pills choose a colour and, in the goals dialog, between the settings of a goal. */
+.color-choice,
+.goal-choice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 7px;
+  font-size: var(--fs-body);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.color-choice input,
+.goal-choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.color-choice .swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
+}
+.color-choice:has(input:checked),
+.goal-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+.color-choice:has(input:focus-visible),
+.goal-choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Text only, so no room for a swatch; the one that is on has a thicker line, besides the colour. */
+.goal-choices .goal-choice {
+  padding: 7px 14px;
+}
+.goal-choices .goal-choice:has(input:checked) {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .highlight-bar,
+  .note-mark[data-flash] {
+    animation: none;
   }
 }

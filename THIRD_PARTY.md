@@ -3,14 +3,14 @@
 O código original do Fólio usa a [licença MIT](LICENSE). Esse licenciamento não
 substitui as licenças de bibliotecas, fontes ou codecs utilizados pelo aplicativo.
 
-| Componente direto        | Uso                             | Licença declarada |
-| ------------------------ | ------------------------------- | ----------------- |
-| PDF.js                   | Renderização e busca no PDF     | Apache-2.0        |
-| Tauri e plugins oficiais | Janela, WebView2 e diálogos     | MIT ou Apache-2.0 |
-| Serde e serde_json       | Serialização do catálogo        | MIT ou Apache-2.0 |
-| sha2                     | Deduplicação por conteúdo       | MIT ou Apache-2.0 |
-| uuid                     | Identificação das cópias        | MIT ou Apache-2.0 |
-| tempfile                 | Gravação por arquivo temporário | MIT ou Apache-2.0 |
+| Componente direto        | Uso                                           | Licença declarada |
+| ------------------------ | --------------------------------------------- | ----------------- |
+| PDF.js                   | Renderização e busca no PDF                   | Apache-2.0        |
+| Tauri e plugins oficiais | Janela, WebView2, diálogos e estado da janela | MIT ou Apache-2.0 |
+| Serde e serde_json       | Serialização do catálogo                      | MIT ou Apache-2.0 |
+| sha2                     | Deduplicação por conteúdo                     | MIT ou Apache-2.0 |
+| uuid                     | Identificação das cópias                      | MIT ou Apache-2.0 |
+| tempfile                 | Gravação por arquivo temporário               | MIT ou Apache-2.0 |
 
 As versões exatas estão em `package-lock.json` e `src-tauri/Cargo.lock`.
 `scripts/notices.mjs` recolhe os textos de licença dos pacotes instalados e os

@@ -18,8 +18,9 @@ trechos de duas páginas, mantendo a diagramação do PDF.
 
 ## Conforto sem inverter o papel
 
-Brilho e tela quente podem ser combinados com papel claro. Os controles se
-encontram nas preferências, sem ocupar permanentemente a área de leitura.
+Brilho e tela quente podem ser combinados com papel claro. Os controles estão no
+botão Aparência da barra de leitura e nas preferências, sem ocupar permanentemente a
+área de leitura.
 
 ![Preferências de conforto](media/conforto.png)
 

@@ -60,3 +60,48 @@ writer.write(str(FIXTURES / "Documento protegido.pdf"))
 (FIXTURES / "Invalido.pdf").write_bytes(b"not a pdf")
 (FIXTURES / "Corrompido.pdf").write_bytes(b"%PDF-1.7\nnot a valid document structure")
 print("PDFs artificiais criados:", FIXTURES)
+
+# Large internal margins reproduce the visible break between book pages.
+joined = canvas.Canvas(str(FIXTURES / "Paginas com margens.pdf"), pagesize=(595, 842))
+for number in range(1, 7):
+    if number != 5:
+        joined.setFont("Times-Roman", 17)
+        for line in range(15):
+            joined.drawString(65, 650 - line * 28, f"Pagina {number:02d}, linha {line + 1:02d}: texto preservado.")
+    if number == 3:
+        joined.setFont("Helvetica", 8)
+        joined.drawString(65, 18, "RODAPE QUE NAO PODE SER CORTADO")
+    if number == 4:
+        joined.setFillColor(HexColor("#356f90"))
+        joined.rect(70, 25, 120, 48, fill=1, stroke=0)
+        joined.setFillColor(HexColor("#000000"))
+    if number == 6:
+        joined.setFont("Helvetica", 10)
+        joined.setFillColor(HexColor("#fefefe"))
+        joined.drawString(65, 20, "TEXTO MUITO CLARO PRESERVADO")
+    joined.showPage()
+joined.save()
+
+# Chapter starts: outline metadata, explicit heading without an outline, and a
+# short final chapter. The preceding lines must all remain readable.
+chapters = canvas.Canvas(str(FIXTURES / "Capitulos.pdf"), pagesize=(595, 842))
+for number in range(1, 7):
+    chapters.setFillColor(HexColor("#000000"))
+    start = 735
+    if number == 2:
+        chapters.bookmarkPage("chapter-two")
+        chapters.addOutlineEntry("Uma nova viagem", "chapter-two", 0)
+        chapters.setFont("Times-Bold", 25)
+        chapters.drawString(65, 735, "Uma nova viagem")
+        start = 670
+    if number in [4, 6]:
+        chapters.setFont("Times-Bold", 21)
+        chapters.drawString(65, 735, "CAPITULO DOIS" if number == 4 else "CAPITULO TRES")
+        start = 670
+    chapters.setFont("Times-Roman", 15)
+    count = 3 if number == 6 else 24
+    for line in range(count):
+        prefix = "ANTERIOR" if number == 1 else f"PAGINA {number}"
+        chapters.drawString(65, start - line * 23, f"{prefix} LINHA {line + 1:02d} - conteudo preservado.")
+    chapters.showPage()
+chapters.save()
