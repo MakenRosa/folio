@@ -62,10 +62,14 @@ async function launch() {
   });
   // Kept for the error below: a panic or a WebView2 failure is told on stderr.
   let stderr = '';
+  let launchError;
   app.stderr.on('data', (chunk) => (stderr = (stderr + chunk).slice(-4000)));
+  // An executable that cannot start at all (missing build, blocked) says so here.
+  app.once('error', (error) => (launchError = error));
   // The first WebView2 start on a fresh CI machine can take far longer than on a desktop.
   let last = 'no answer yet';
   for (let attempt = 0; attempt < 480; attempt++) {
+    if (launchError) throw launchError;
     if (app.exitCode !== null)
       throw new Error(`Isolated app exited before becoming ready (${app.exitCode}).\n${stderr}`);
     try {
